@@ -1,5 +1,5 @@
 import numpy as np
-from math import sin, cos, tan, sqrt
+from math import sin, cos, tan, sqrt, atan2
 import matplotlib.pyplot as plt
 
 class CarModel():
@@ -125,10 +125,7 @@ class Aux():
         pass
 
     def point_point_distance(self, p1, p2):
-        '''
-            Inputs must be numpy arrays (and not python lists)
-        '''
-        return np.linalg.norm(p1 - p2)
+        return np.linalg.norm((p1[0]-p2[0], p1[1]-p2[1]))
 
     def point_line_distance(self, p, s):  # perpendicular distance from point to line
         """Perpendicular distance from point to line.
@@ -162,29 +159,27 @@ class Aux():
         a0 = (sum(y)*sum(np.power(x,2)) - sum(x)*sum(np.multiply(x,y))) / (n*sum(np.power(x,2)) - pow(sum(x),2))
         a1 = (n*sum(np.multiply(x,y)) - sum(x)*sum(y)) / (n*sum(np.power(x,2)) - pow(sum(x),2))
         return [[p[i][0], a0 + a1*p[i][0]] for i in range(2)]
+    
+    def ErrorsFromWaypoints(self, currState, wpList):
+        """
+            Args:
+                currState = [x,y,theta]
+                wpList = [[x1,y1], [x2,y2], ...]
 
-    def calculateVref(self, curr_pos, future_unreached_waypoints, lookahead, defaultV):
-        '''
-            defaulV: [Vcurve, Vstraight]
-        '''
-        target_velocity = defaultV[0]    # should work safely for curves
-        fiterror = .1    # max allowed error for line fit
-        for i in range(3, len(future_unreached_waypoints)):     # start with the first 3 waypoints
-            wp = future_unreached_waypoints[:i]
-            line_p = self.fit_line(wp)
-            e = [abs(self.point_line_distance(p,line_p)) for p in wp]
-            emax = max(e)
-            l_d = np.linalg.norm(wp[-1] - curr_pos) # lookahead distance to the furthest point
+            Return:
+                Cross-track err: perp. distance to the fitted line of wpList.
+                Heading err: angle difference to the fitted line of wpList.
+        """
+        currLoc = currState[:2]
+        currTheta = currState[2]
+        wp = np.array(self.fit_line(wpList))    # np.array([[x1,y1],[x2,y2]])
+        ct_err = self.point_line_distance(currLoc, wp)
+        path = wp[1] - wp[0]
+        hd_err = currTheta - atan2(path[1], path[0])
+        while hd_err > np.pi:
+            hd_err = hd_err - 2*np.pi
+        while hd_err < -np.pi:
+            hd_err = hd_err + 2*np.pi
+        return ct_err, hd_err
 
-            if emax <= fiterror and l_d >= lookahead:  # straight path ahead
-                # print('Straight path ahead! vel=' + str(curr_vel))
-                target_velocity = defaultV[1]
-                break
-            
-            if emax > fiterror or l_d >= lookahead:     # either failed to fit or looked far enough ahead
-                # print('Could not fit a straight line! vel=' + str(curr_vel))
-                break
-
-        ####################### TODO: Your TASK 2 code ends Here #######################
-        return target_velocity
 

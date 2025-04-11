@@ -1,7 +1,7 @@
 import numpy as np
 from math import sin, cos, tan, atan2, sqrt
 import matplotlib.pyplot as plt
-from control_utils import CarModel, LQR, Geometry
+from control_utils import CarModel, LQR, Aux
 from sim_waypoints import WayPoints
 
 # ================================
@@ -86,7 +86,7 @@ waypoints = wp.getWayPoints(option=map)
 # ================================
 #           Functions
 # ================================
-g = Geometry()
+g = Aux()
 def cross_track_distance(currLoc, wpList):
     '''
         wpList: [last wp, next wp]
@@ -179,8 +179,9 @@ for i in range(N):
     # if delta_filt > np.pi*20/180:
     #     xref[4] = 1.0
 
-    y = cross_track_distance(x0[:2], waypoints[wp_index-1 : wp_index+1])
-    theta = heading_wrt_track(x0[:2], x0[2], waypoints[wp_index-1 : wp_index+1])
+    y, theta = g.ErrorsFromWaypoints(x0[:3], waypoints[wp_index-1 : wp_index+1])
+    # y = cross_track_distance(x0[:2], waypoints[wp_index-1 : wp_index+1])
+    # theta = heading_wrt_track(x0[:2], x0[2], waypoints[wp_index-1 : wp_index+1])
     evec[i] = [xref[1]-y, xref[2]-theta]
     xbar = np.array([0, y, theta, x0[3], x0[4]])
 

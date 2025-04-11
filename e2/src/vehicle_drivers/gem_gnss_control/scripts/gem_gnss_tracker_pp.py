@@ -24,7 +24,7 @@ import scipy.signal as signal
 
 from filters import OnlineFilter
 from pid_controllers import PID
-
+from control_utils import CarModel, LQR, Aux    # Thinh
 
 # ROS Headers
 import alvinxy.alvinxy as axy # Import AlvinXY transformation module
@@ -51,6 +51,7 @@ class PurePursuit(object):
         self.logtime    = 30.0      # seconds of data to log
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
+        self.tools      = Aux()
 
         self.look_ahead = 4
         self.wheelbase  = 1.75 # meters
@@ -71,6 +72,9 @@ class PurePursuit(object):
 
         self.olat       = 40.0928563
         self.olon       = -88.2359994
+
+        self.steer_sub  = rospy.Subscriber("/pacmod/parsed_tx/steer_rpt", SystemRptFloat, self.steer_callback)
+        self.steer      = 0.0
 
         # read waypoints into the system 
         self.goal       = 0            
@@ -137,6 +141,9 @@ class PurePursuit(object):
 
     def speed_callback(self, msg):
         self.speed = round(msg.vehicle_speed, 3) # forward velocity in m/s
+
+    def steer_callback(self, msg):
+        self.steer = round(np.degrees(msg.manual_input),1)
 
     def enable_callback(self, msg):
         self.pacmod_enable = msg.data
@@ -256,6 +263,10 @@ class PurePursuit(object):
             # finding the distance of each way point from the current position
             for i in range(len(self.path_points_x)):
                 self.dist_arr[i] = self.dist((self.path_points_x[i], self.path_points_y[i]), (curr_x, curr_y))
+            
+            # Calculate actual errors - 0.3m within (curr_x, curr_y)
+            wpList = np.where(self.dist_arr < 0.3)[0]
+            ct_err_actual, hd_err_actual = self.tools.ErrorsFromWaypoints((curr_x, curr_y, curr_yaw), wpList)
 
             # finding those points which are less than the look ahead distance (will be behind and ahead of the vehicle)
             goal_arr = np.where( (self.dist_arr < self.look_ahead + 0.3) & (self.dist_arr > self.look_ahead - 0.3) )[0]
@@ -325,7 +336,10 @@ class PurePursuit(object):
             # ----------------- Log data -----------------
             if not self.logdone:
                 if current_time - self.start_time <= self.logtime:
-                    self.logdata.append([current_time, curr_x, curr_y, curr_yaw, output_accel, steering_angle])
+                    self.logdata.append([ current_time,
+                                          curr_x, curr_y, curr_yaw, self.steer, self.speed,
+                                          steering_angle, output_accel, 0.0,
+                                          ct_err_actual, hd_err_actual ])
                 else:
                     with open(self.logname, 'wb') as f:
                         np.save(f, self.logdata)
