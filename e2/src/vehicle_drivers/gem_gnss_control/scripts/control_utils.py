@@ -45,19 +45,44 @@ class CarModel():
         return A,B
 
     def saturateControl(self, u, u0, dt):
-        # Limit rate
-        u[1] = u0[1] + self.saturate((u[1] - u0[1])/dt, self.throttleROC_min, self.throttleROC_max)*dt
-        u[2] = u0[2] + self.saturate((u[2] - u0[2])/dt, self.brakeROC_min, self.brakeROC_max)*dt
-        
-        # Limit value
-        u[0] = self.saturate(u[0], self.delta_min, self.delta_max)
-        u[1] = self.saturate(u[1], self.throttle_min, self.throttle_max)
-        u[2] = self.saturate(u[2], self.brake_min, self.brake_max)
-        
-        return u
+        if dt > 0:
+            # Limit rate
+            u[1] = u0[1] + self.saturate((u[1] - u0[1])/dt, self.throttleROC_min, self.throttleROC_max)*dt
+            u[2] = u0[2] + self.saturate((u[2] - u0[2])/dt, self.brakeROC_min, self.brakeROC_max)*dt
+            # Limit value
+            u[0] = self.saturate(u[0], self.delta_min, self.delta_max)
+            u[1] = self.saturate(u[1], self.throttle_min, self.throttle_max)
+            u[2] = self.saturate(u[2], self.brake_min, self.brake_max)
+            return u
+        else:
+            return u0
 
     def saturate(self, val, lower_bound, upper_bound):
         return max(lower_bound, min(upper_bound, val))
+    
+    def delta2steer(self, delta):     # delta (rad) to steering wheel angle (rad)
+        delta = self.saturate(delta, self.delta_min, self.delta_max)
+        return np.sign(delta) * (-6.2109*delta**2 + 21.775*abs(delta))
+    
+    def steer2delta(self, steeringWheel):     # steering wheel angle (rad) to delta (rad)
+        # sgn(delta) = sgn(steeringWheel)
+        steeringWheel = self.saturate(steeringWheel, -10.9840, 10.9840)
+        if steeringWheel == 0:
+            delta = 0.0
+        else:
+            a = -np.sign(steeringWheel)*6.2109
+            b = np.sign(steeringWheel)*21.775
+            c = -steeringWheel
+            d = (b**2 - 4*a*c) ** .5
+            abs_delta = [(-b+d)/(2*a), (-b-d)/(2*a)]
+            if abs_delta[0] >= 0 and abs_delta[0] < 0.7:
+                delta = abs_delta[0]
+            elif abs_delta[1] >= 0 and abs_delta[1] < 0.7:
+                delta = abs_delta[1]
+            else:
+                delta = 0.0
+            delta *= np.sign(steeringWheel)
+        return delta
 
 
 class LQR():    # continuous-time only
@@ -94,7 +119,7 @@ class LQR():    # continuous-time only
         # return K
 
 
-class Geometry():
+class Aux():
 
     def __init__(self):
         pass

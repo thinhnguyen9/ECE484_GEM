@@ -216,6 +216,11 @@ print('====================================\nFinished or timed out.\n===========
 print('Cross-track RMSE: ' + str(yRMSE) + ' m')
 print('Heading RMSE: ' + str(thetaRMSE) + ' rad')
 
+with open('e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy', 'wb') as f:
+    np.save(f, xvec)
+with open('e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy', 'rb') as f:
+    xvec_temp = np.load(f)
+
 # ================================
 #           Plot
 # ================================

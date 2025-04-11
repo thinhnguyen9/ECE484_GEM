@@ -44,13 +44,19 @@ class PurePursuit(object):
     
     def __init__(self):
 
-        self.rate       = rospy.Rate(10)
+        self.rate       = rospy.Rate(30)    # Thinh
+        self.start_time = rospy.get_time()
+        self.last_time  = self.start_time
+        self.logname    = "/home/MechPower/logs/" + str(self.start_time) + ".npy"
+        self.logtime    = 30.0      # seconds of data to log
+        self.logdata    = []        # [time, x, u]
+        self.logdone    = False
 
         self.look_ahead = 4
         self.wheelbase  = 1.75 # meters
         self.offset     = 0.46 # meters
 
-        self.gnss_sub_old   = rospy.Subscriber("/novatel/inspva", Inspva, self.inspva_callback)
+        # self.gnss_sub_old   = rospy.Subscriber("/novatel/inspva", Inspva, self.inspva_callback)
         # we replaced novatel hardware with septentrio hardware on e2
         self.gnss_sub   = rospy.Subscriber("/septentrio_gnss/navsatfix", NavSatFix, self.gnss_callback)
         self.ins_sub    = rospy.Subscriber("/septentrio_gnss/insnavgeod", INSNavGeod, self.ins_callback)
@@ -116,10 +122,10 @@ class PurePursuit(object):
         self.steer_cmd.angular_velocity_limit = 2.0 # radians/second
 
 
-    def inspva_callback(self, inspva_msg):
-        self.lat     = inspva_msg.latitude  # latitude
-        self.lon     = inspva_msg.longitude # longitude
-        self.heading = inspva_msg.azimuth   # heading in degrees
+    # def inspva_callback(self, inspva_msg):
+    #     self.lat     = inspva_msg.latitude  # latitude
+    #     self.lon     = inspva_msg.longitude # longitude
+    #     self.heading = inspva_msg.azimuth   # heading in degrees
     
     def ins_callback(self, msg):
         self.heading = round(msg.heading, 6)
@@ -315,6 +321,16 @@ class PurePursuit(object):
             self.accel_pub.publish(self.accel_cmd)
             self.steer_pub.publish(self.steer_cmd)
             self.turn_pub.publish(self.turn_cmd)
+
+            # ----------------- Log data -----------------
+            if not self.logdone:
+                if current_time - self.start_time <= self.logtime:
+                    self.logdata.append([current_time, curr_x, curr_y, curr_yaw, output_accel, steering_angle])
+                else:
+                    with open(self.logname, 'wb') as f:
+                        np.save(f, self.logdata)
+                    print("Data logged into " + self.logname)
+                    self.logdone = True
 
             self.rate.sleep()
 
