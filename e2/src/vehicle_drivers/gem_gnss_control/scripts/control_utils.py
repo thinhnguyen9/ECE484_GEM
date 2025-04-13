@@ -158,7 +158,14 @@ class Aux():
         y = [p[i][1] for i in range(n)]
         a0 = (sum(y)*sum(np.power(x,2)) - sum(x)*sum(np.multiply(x,y))) / (n*sum(np.power(x,2)) - pow(sum(x),2))
         a1 = (n*sum(np.multiply(x,y)) - sum(x)*sum(y)) / (n*sum(np.power(x,2)) - pow(sum(x),2))
-        return [[p[i][0], a0 + a1*p[i][0]] for i in range(2)]
+        # return [[p[i][0], a0 + a1*p[i][0]] for i in range(2)]
+
+        # tránh trường hợp nhiều điểm trùng x coordinate
+        points = [(p[0][0], a0 + a1*p[0][0])]
+        for point in p:
+            if point[0] != p[0][0]:
+                points.append((point[0], a0 + a1*point[0]))
+                return points
     
     def ErrorsFromWaypoints(self, currState, wpList):
         """
@@ -170,16 +177,37 @@ class Aux():
                 Cross-track err: perp. distance to the fitted line of wpList.
                 Heading err: angle difference to the fitted line of wpList.
         """
+        # currLoc = currState[:2]
+        # currTheta = currState[2]
+        # wp = np.array(self.fit_line(wpList))    # np.array([[x1,y1],[x2,y2]])
+        # ct_err = self.point_line_distance(currLoc, wp)
+        # path = wp[1] - wp[0]
+        # hd_err = currTheta - atan2(path[1], path[0])
+        # while hd_err > np.pi:
+        #     hd_err = hd_err - 2*np.pi
+        # while hd_err < -np.pi:
+        #     hd_err = hd_err + 2*np.pi
+        # return ct_err, hd_err
+    
+        # tránh trường hợp wpList ko đúng chiều di chuyển của xe
         currLoc = currState[:2]
         currTheta = currState[2]
         wp = np.array(self.fit_line(wpList))    # np.array([[x1,y1],[x2,y2]])
-        ct_err = self.point_line_distance(currLoc, wp)
         path = wp[1] - wp[0]
         hd_err = currTheta - atan2(path[1], path[0])
         while hd_err > np.pi:
             hd_err = hd_err - 2*np.pi
         while hd_err < -np.pi:
             hd_err = hd_err + 2*np.pi
+        
+        if hd_err > np.pi/2 or hd_err < -np.pi/2:
+            wp = [wp[1], wp[0]]     # đảo thứ tự
+            path = wp[1] - wp[0]
+            hd_err = currTheta - atan2(path[1], path[0])
+            while hd_err > np.pi:
+                hd_err = hd_err - 2*np.pi
+            while hd_err < -np.pi:
+                hd_err = hd_err + 2*np.pi
+        ct_err = self.point_line_distance(currLoc, wp)
         return ct_err, hd_err
-
 
