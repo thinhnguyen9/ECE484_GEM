@@ -161,11 +161,19 @@ class Aux():
         # return [[p[i][0], a0 + a1*p[i][0]] for i in range(2)]
 
         # tránh trường hợp nhiều điểm trùng x coordinate
-        points = [(p[0][0], a0 + a1*p[0][0])]
-        for point in p:
-            if point[0] != p[0][0]:
-                points.append((point[0], a0 + a1*point[0]))
-                return points
+        # points = [(p[0][0], a0 + a1*p[0][0])]
+        # for point in p:
+        #     if point[0] != p[0][0]:
+        #         points.append((point[0], a0 + a1*point[0]))
+        #         return points
+        
+        # tránh trường hợp nhiều điểm trùng x coordinate và a1 -> inf
+        # nhưng kq có thể ko đúng chiều chuyển động của xe (+/- k*pi)
+        ds = 0.1
+        dx = ds/sqrt(a1**2 + 1)
+        dy = a1*ds/sqrt(a1**2 + 1)
+        return [(p[0][0], a0 + a1*p[0][0]),
+                (p[0][0] + dx, a0 + a1*p[0][0] + dy)]
     
     def ErrorsFromWaypoints(self, currState, wpList):
         """
