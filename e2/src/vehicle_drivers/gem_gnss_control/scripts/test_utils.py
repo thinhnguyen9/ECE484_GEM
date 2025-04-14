@@ -40,12 +40,12 @@ import matplotlib.pyplot as plt
 # =================================================
 #              Plot experiment data
 # =================================================
-with open('e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy', 'rb') as f:
+with open('1744546617.7306874.npy', 'rb') as f:
     data = np.load(f)
 tvec = data[:,0] - data[0,0]
 xvec = data[:,1:6]
 uvec = data[:,6:9]
-evec = data[:,9:11]
+# evec = data[:,9:11]
 
 plt.subplot(2,2,1)
 # plt.plot(lane[:,0], lane[:,1], label='lane')
@@ -58,14 +58,14 @@ plt.legend()
 plt.title('2D path')
 plt.axis('equal')
 
-plt.subplot(2,2,2)
-plt.plot(tvec, evec[:,0], label='cross-track err (m)', lw=1)
-plt.plot(tvec, evec[:,1], label='heading err (rad)', lw=1)
-plt.xlabel('Time (s)')
-plt.ylabel('m, rad')
-plt.grid()
-plt.legend()
-plt.title('Cross-track error')
+# plt.subplot(2,2,2)
+# plt.plot(tvec, evec[:,0], label='cross-track err (m)', lw=1)
+# plt.plot(tvec, evec[:,1], label='heading err (rad)', lw=1)
+# plt.xlabel('Time (s)')
+# plt.ylabel('m, rad')
+# plt.grid()
+# plt.legend()
+# plt.title('Cross-track error')
 
 plt.subplot(2,2,3)
 plt.plot(tvec, uvec[:,0]*180/np.pi, label='command', lw=.7)

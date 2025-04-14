@@ -38,6 +38,7 @@ import alvinxy.alvinxy as axy # Import AlvinXY transformation module
 from sensor_msgs.msg import Image
 from std_msgs.msg import String, Header, Bool, Float32, Float64
 from novatel_gps_msgs.msg import NovatelPosition, NovatelXYZ, Inspva
+from sensor_msgs.msg import CameraInfo
 
 # GEM PACMod Headers
 from geometry_msgs.msg import PoseStamped
@@ -115,6 +116,12 @@ class LaneNetDetector:
         # Camera and Control Parameters
         ###############################################################################
         
+        self.camera_matrix = None  # 將在 camera_info callback 中初始化
+        self.camera_info_received = False
+        rospy.Subscriber("zed2/zed_node/rgb/camera_info", CameraInfo, self.camera_info_callback)
+        # zed2/zed_node/rgb/camera_info
+        # zed2/zed_node/rgb_raw/camera_info
+
         self.Focal_Length = 800  # Camera focal length in pixels
         self.Real_Height_SS = .75  # Height of stop sign in meters (not used currently)
         self.Brake_Distance = 5  # Distance at which to apply brakes (not used currently)
@@ -125,8 +132,11 @@ class LaneNetDetector:
         ###############################################################################
         
         # Subscribe to camera feed
-        self.sub_image = rospy.Subscriber('/zed2/zed_node/left/image_rect_color', Image, self.img_callback, queue_size=1)
-        # note that oak/rgb/image_raw is the topic name for the GEM E4. If you run this on the E2, you will need to change the topic name to e.g., /zed2/zed_node/left/image_rect_color
+        self.sub_image = rospy.Subscriber('zed2/zed_node/rgb/image_rect_color', Image, self.img_callback, queue_size=1)
+        # note that oak/rgb/image_raw is the topic name for the GEM E4. If you run this on the E2, you will need to change the topic name
+        # possible ros topic for E2:
+        # zed2/zed_node/rgb/image_rect_color
+        # zed2/zed_node/rgb_raw/image_rect_color
         
         # Publishers for visualization and control
         self.pub_contrasted_image = rospy.Publisher("lane_detection/contrasted_image", Image, queue_size=1)
@@ -160,17 +170,17 @@ class LaneNetDetector:
             # Convert to HSV color space for better color segmentation
             hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
             
-            # Define yellow color range for lane markings
-            lower_yellow = np.array([20, 100, 100])
-            upper_yellow = np.array([30, 255, 255])
+            # Define white color range for lane markings
+            lower_white = np.array([200, 200, 200])
+            upper_white = np.array([255, 255, 255])
             
-            # Create masks to enhance yellow lane markings
-            yellow_mask = cv2.inRange(hsv_img, lower_yellow, upper_yellow)
-            non_yellow_mask = cv2.bitwise_not(yellow_mask)
+            # Create masks to enhance white lane markings
+            white_mask = cv2.inRange(hsv_img, lower_white, upper_white)
+            non_white_mask = cv2.bitwise_not(white_mask)
             
-            # Remove non-yellow areas and convert to grayscale
-            img_no_yellow = cv2.bitwise_and(img, img, mask=non_yellow_mask)
-            img_gray = cv2.cvtColor(img_no_yellow, cv2.COLOR_BGR2GRAY)
+            # Remove non-white areas and convert to grayscale
+            img_no_white = cv2.bitwise_and(img, img, mask=non_white_mask)
+            img_gray = cv2.cvtColor(img_no_white, cv2.COLOR_BGR2GRAY)
             
             # Apply contrast enhancement using thresholding
             threshold = 180
@@ -254,7 +264,15 @@ class LaneNetDetector:
         
         return img_tensor
 
-    def image_to_world(self, u, v, camera_matrix, camera_height):
+    def camera_info_callback(self, msg):
+        """
+        get camera info and save it as a 3x3 matrix for image_to_world
+        """
+        K = msg.K  # camera intrinsic matrix is a one-dimentional list with a length of 9
+        self.camera_matrix = np.array(K).reshape(3, 3)
+        self.camera_info_received = True
+
+    def image_to_world(self, u, v, camera_matrix, camera_height=1.85): # 1.85 meter
         """
         Convert image coordinates to world coordinates using pinhole camera model.
         
@@ -376,7 +394,7 @@ class LaneNetDetector:
         # Sampling parameters
         sampling_step = 10  # Sample every 10 pixels vertically
         left_boundary = []  # Store left boundary points
-        offset_pixels = 200  # Estimated distance from left boundary to lane center
+        offset_pixels = 350  # Estimated distance from left boundary to lane center
         
         ###############################################################################
         # Scan Lane Mask and Extract Boundaries
@@ -485,6 +503,9 @@ class LaneNetDetector:
             waypoints: ROS Path message with waypoints
         """
         # Publish waypoints
+        # Convert the waypoints into world coordinate first
+        # for waypoint in waypoints:
+        #     waypoint[0], waypoint[1], _ = self.image_to_world(waypoint[0], waypoint[1], self.camera_matrix)
         self.pub_waypoints.publish(waypoints)
         
         # Publish end goal if available

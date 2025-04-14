@@ -154,6 +154,7 @@ class Aux():
                 2 points on the fitted line.
         """
         n = len(p)
+        # print(p)
         x = [p[i][0] for i in range(n)]
         y = [p[i][1] for i in range(n)]
         a0 = (sum(y)*sum(np.power(x,2)) - sum(x)*sum(np.multiply(x,y))) / (n*sum(np.power(x,2)) - pow(sum(x),2))

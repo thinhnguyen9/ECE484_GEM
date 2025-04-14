@@ -47,8 +47,8 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logname    = "/home/MechPower/logs/" + str(self.start_time) + ".npy"
-        self.logtime    = 30.0      # seconds of data to log
+        self.logname    = str(self.start_time) + ".npy"
+        self.logtime    = 10.0      # seconds of data to log
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
         self.tools      = Aux()
@@ -266,9 +266,11 @@ class PurePursuit(object):
             
             # Calculate actual errors - 0.3m within (curr_x, curr_y)
             wpList = np.where(self.dist_arr < 0.3)[0]
-            ct_err_actual, hd_err_actual = self.tools.ErrorsFromWaypoints((curr_x, curr_y, curr_yaw), wpList)
+            # print(len(wpList))
+            # ct_err_actual, hd_err_actual = self.tools.ErrorsFromWaypoints((curr_x, curr_y, curr_yaw), wpList)
 
             # finding those points which are less than the look ahead distance (will be behind and ahead of the vehicle)
+            # print(len(wpList))
             goal_arr = np.where( (self.dist_arr < self.look_ahead + 0.3) & (self.dist_arr > self.look_ahead - 0.3) )[0]
 
             # finding the goal point which is the last in the set of points less than the lookahead distance
@@ -336,14 +338,41 @@ class PurePursuit(object):
             # ----------------- Log data -----------------
             if not self.logdone:
                 if current_time - self.start_time <= self.logtime:
-                    self.logdata.append([ current_time,
-                                          curr_x, curr_y, curr_yaw, self.steer, self.speed,
-                                          steering_angle, output_accel, 0.0,
-                                          ct_err_actual, hd_err_actual ])
+                    # Append as before
+                    entry = [current_time, curr_x, curr_y, curr_yaw, self.steer, self.speed,
+                            steering_angle, output_accel, 0.0]
+                    
+                    # Add debug print to check entry format
+                    print(f"Entry shape: {len(entry)}, types: {[type(x) for x in entry]}")
+                    
+                    self.logdata.append(entry)
                 else:
-                    with open(self.logname, 'wb') as f:
-                        np.save(f, self.logdata)
-                    print("Data logged into " + self.logname)
+                    # Debug: check problematic entries
+                    problem_entries = []
+                    for i, entry in enumerate(self.logdata):
+                        if not isinstance(entry, list) or len(entry) != 9:
+                            problem_entries.append((i, entry))
+                            
+                    if problem_entries:
+                        print(f"Found {len(problem_entries)} problematic entries:")
+                        for i, entry in problem_entries[:5]:  # Show up to 5 examples
+                            print(f"Index {i}: {entry}, type: {type(entry)}")
+                            
+                    # Try saving with manual conversion
+                    try:
+                        # Convert each entry individually to ensure consistency
+                        clean_data = []
+                        for entry in self.logdata:
+                            if isinstance(entry, list) and len(entry) == 9:
+                                clean_data.append([float(x) if x is not None else 0.0 for x in entry])
+                        
+                        data_array = np.array(clean_data, dtype=float)
+                        with open(self.logname, 'wb') as f:
+                            np.save(f, data_array)
+                        print("Data logged into " + self.logname)
+                    except Exception as e:
+                        print(f"Error during save: {e}")
+                        
                     self.logdone = True
 
             self.rate.sleep()
