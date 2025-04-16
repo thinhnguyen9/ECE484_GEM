@@ -47,8 +47,8 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logname    = "/home/MechPower/logs/" + str(self.start_time) + ".npy"
-        self.logtime    = 30.0      # seconds of data to log
+        self.logname    = str(self.start_time) + ".npy"
+        self.logtime    = 10.0      # seconds of data to log
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
         self.tools      = Aux()
@@ -123,7 +123,7 @@ class PurePursuit(object):
         self.steer_pub = rospy.Publisher('/pacmod/as_rx/steer_cmd', PositionWithSpeed, queue_size=1)
         self.steer_cmd = PositionWithSpeed()
         self.steer_cmd.angular_position = 0.0 # radians, -: clockwise, +: counter-clockwise
-        self.steer_cmd.angular_velocity_limit = 2.0 # radians/second
+        self.steer_cmd.angular_velocity_limit = 4.0 # radians/second
 
 
     # def inspva_callback(self, inspva_msg):
@@ -264,9 +264,23 @@ class PurePursuit(object):
             for i in range(len(self.path_points_x)):
                 self.dist_arr[i] = self.dist((self.path_points_x[i], self.path_points_y[i]), (curr_x, curr_y))
             
+            
+            # ====================================================================================================
             # Calculate actual errors - 0.3m within (curr_x, curr_y)
-            wpList = np.where(self.dist_arr < 0.3)[0]
-            ct_err_actual, hd_err_actual = self.tools.ErrorsFromWaypoints((curr_x, curr_y, curr_yaw), wpList)
+            r = 0.2
+            idxList = []
+            while len(idxList) < 2 and r < 5:   # need at least 2 points to do line fit
+                r += 0.1
+                idxList = np.where(self.dist_arr < r)[0]
+            print(str(len(idxList)) + " waypoints for r=" + str(r))
+            if len(idxList) >= 2:
+                wpList = [(self.path_points_x[i], self.path_points_y[i]) for i in idxList]
+                ct_err_actual, hd_err_actual = self.tools.ErrorsFromWaypoints((curr_x, curr_y, curr_yaw), wpList)
+            else:
+                print('Wtf no wp found ??')
+                ct_err_actual, hd_err_actual = None, None
+            # ====================================================================================================
+
 
             # finding those points which are less than the look ahead distance (will be behind and ahead of the vehicle)
             goal_arr = np.where( (self.dist_arr < self.look_ahead + 0.3) & (self.dist_arr > self.look_ahead - 0.3) )[0]
@@ -333,18 +347,38 @@ class PurePursuit(object):
             self.steer_pub.publish(self.steer_cmd)
             self.turn_pub.publish(self.turn_cmd)
 
+            # ====================================================================================================
             # ----------------- Log data -----------------
             if not self.logdone:
                 if current_time - self.start_time <= self.logtime:
-                    self.logdata.append([ current_time,
-                                          curr_x, curr_y, curr_yaw, self.steer, self.speed,
-                                          steering_angle, output_accel, 0.0,
-                                          ct_err_actual, hd_err_actual ])
+                    entry = [ current_time,
+                              curr_x, curr_y, curr_yaw, self.steer, self.speed,
+                              steering_angle, output_accel, 0.0,
+                              ct_err_actual, hd_err_actual ]
+                    self.logdata.append([float(x) if x is not None else 0.0 for x in entry])
                 else:
-                    with open(self.logname, 'wb') as f:
-                        np.save(f, self.logdata)
-                    print("Data logged into " + self.logname)
+                    # Debug: check problematic entries
+                    problem_entries = []
+                    for i, entry in enumerate(self.logdata):
+                        if not isinstance(entry, list) or len(entry) != 11:
+                            problem_entries.append((i, entry))
+                            
+                    if problem_entries:
+                        print(f"Found {len(problem_entries)} problematic entries:")
+                        for i, entry in problem_entries[:5]:  # Show up to 5 examples
+                            print(f"Index {i}: {entry}, type: {type(entry)}")
+                            
+                    # Try saving with manual conversion
+                    try:
+                        data_array = np.array(self.logdata, dtype=float)
+                        with open(self.logname, 'wb') as f:
+                            np.save(f, data_array)
+                        print("Data logged into " + self.logname)
+                    except Exception as e:
+                        print(f"Error during save: {e}")
+                    
                     self.logdone = True
+            # ====================================================================================================
 
             self.rate.sleep()
 
