@@ -40,16 +40,18 @@ import matplotlib.pyplot as plt
 # =================================================
 #              Plot experiment data
 # =================================================
-with open('e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy', 'rb') as f:
+# with open('e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy', 'rb') as f:
+with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/pp_control.npy', 'rb') as f:
     data = np.load(f)
+    lane_x = np.load(f)
+    lane_y = np.load(f)
 tvec = data[:,0] - data[0,0]
 xvec = data[:,1:6]
 uvec = data[:,6:9]
 evec = data[:,9:11]
 
 plt.subplot(2,2,1)
-# plt.plot(lane[:,0], lane[:,1], label='lane')
-# plt.plot(waypoints[:,0], waypoints[:,1], label='lane', c='black', ls='--', lw=1)
+plt.plot(lane_x, lane_y, label='lane', c='black', ls='--', lw=1)
 plt.plot(xvec[:,0], xvec[:,1], label='car', c='red', ls='-', lw=1.5)
 plt.xlabel('X (m)')
 plt.ylabel('Y (m)')

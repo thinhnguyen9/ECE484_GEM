@@ -27,12 +27,12 @@ from pid_controllers import PID
 from control_utils import CarModel, LQR, Aux    # Thinh
 
 # ROS Headers
-import alvinxy.alvinxy as axy # Import AlvinXY transformation module
+# import alvinxy.alvinxy as axy # Import AlvinXY transformation module
 import rospy
 
 # GEM Sensor Headers
 from std_msgs.msg import String, Bool, Float32, Float64
-from novatel_gps_msgs.msg import NovatelPosition, NovatelXYZ, Inspva
+# from novatel_gps_msgs.msg import NovatelPosition, NovatelXYZ, Inspva
 from sensor_msgs.msg import NavSatFix
 from septentrio_gnss_driver.msg import INSNavGeod
 
@@ -48,7 +48,7 @@ class PurePursuit(object):
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
         self.logname    = str(self.start_time) + ".npy"
-        self.logtime    = 10.0      # seconds of data to log
+        self.logtime    = 140.0      # seconds of data to log
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
         self.tools      = Aux()
@@ -184,7 +184,14 @@ class PurePursuit(object):
 
     def wps_to_local_xy(self, lon_wp, lat_wp):
         # convert GNSS waypoints into local fixed frame reprented in x and y
-        lon_wp_x, lat_wp_y = axy.ll2xy(lat_wp, lon_wp, self.olat, self.olon)
+        # lon_wp_x, lat_wp_y = axy.ll2xy(lat_wp, lon_wp, self.olat, self.olon)
+
+        latrad = self.olat*np.pi/180.0 
+        mdeglon = 111415.13*np.cos(latrad) - 94.55*np.cos(3.0*latrad) + 0.12*np.cos(5.0*latrad)
+        mdeglat = 111132.09 - 566.05*np.cos(2.0*latrad) + 1.20*np.cos(4.0*latrad) - 0.002*np.cos(6.0*latrad)
+
+        lon_wp_x = (lon_wp - self.olon) * mdeglon
+        lat_wp_y = (lat_wp - self.olat) * mdeglat
         return lon_wp_x, lat_wp_y   
 
     def get_gem_state(self):
@@ -371,8 +378,12 @@ class PurePursuit(object):
                     # Try saving with manual conversion
                     try:
                         data_array = np.array(self.logdata, dtype=float)
+                        lane_x = self.path_points_x
+                        lane_y = self.path_points_y
                         with open(self.logname, 'wb') as f:
                             np.save(f, data_array)
+                            np.save(f, lane_x)
+                            np.save(f, lane_y)
                         print("Data logged into " + self.logname)
                     except Exception as e:
                         print(f"Error during save: {e}")
