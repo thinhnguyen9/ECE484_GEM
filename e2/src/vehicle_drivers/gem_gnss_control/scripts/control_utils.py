@@ -217,5 +217,19 @@ class Aux():
             while hd_err < -np.pi:
                 hd_err = hd_err + 2*np.pi
         ct_err = self.point_line_distance(currLoc, wp)
+        print(wp)
         return ct_err, hd_err
+
+    def ll2xy(self, lat, lon, olat, olon):
+        # convert GNSS waypoints into local fixed frame reprented in x and y
+        # lon_wp_x, lat_wp_y = alvinxy.ll2xy(lat_wp, lon_wp, self.olat, self.olon)
+        # https://docs.ros.org/en/jade/api/geonav_transform/html/_modules/alvinxy/alvinxy.html#ll2xy
+
+        latrad = olat*np.pi/180.0
+        mdeglon = 111415.13*cos(latrad) - 94.55*cos(3.0*latrad) + 0.12*cos(5.0*latrad)
+        mdeglat = 111132.09 - 566.05*cos(2.0*latrad) + 1.20*cos(4.0*latrad) - 0.002*cos(6.0*latrad)
+
+        x = (lon - olon)*mdeglon
+        y = (lat - olat)*mdeglat
+        return x, y
 

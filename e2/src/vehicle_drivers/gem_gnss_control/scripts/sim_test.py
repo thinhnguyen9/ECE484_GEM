@@ -125,6 +125,11 @@ def heading_wrt_track(currLoc, currTheta, wpList):
 # ================================
 #           Run sim
 # ================================
+logname    = "e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy"
+logtime    = 100.0     # seconds of data to log
+logdata    = []        # [time, x, u]
+logdone    = False
+
 N = np.size(tvec)
 xrefvec = np.zeros((N, GEM.n))
 xvec = np.zeros((N, GEM.n))
@@ -206,21 +211,33 @@ for i in range(N):
     xvec[i] = x0
     xrefvec[i] = xref
 
+    # ----------------- Log data -----------------
+    if not logdone:
+        if tvec[i] <= logtime:
+            logdata.append([ tvec[i],
+                            x0[0], x0[1], x0[2], x0[3], x0[4],
+                            u[0], u[1], u[2],
+                            y, theta ])
+        else:
+            with open(logname, 'wb') as f:
+                np.save(f, logdata)
+            print("Data logged into " + logname)
+            logdone = True
+
     dx = GEM.dx(x0, u)
     x0 = x0 + dx*ts
     u0 = u
 
+# with open('e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy', 'wb') as f:
+#     np.save(f, xvec)
+# with open('e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy', 'rb') as f:
+#     xvec_temp = np.load(f)
 
 yRMSE = sqrt(np.mean(np.power(evec[:i,0], 2)))
 thetaRMSE = sqrt(np.mean(np.power(evec[:i,1], 2)))
 print('====================================\nFinished or timed out.\n====================================')
 print('Cross-track RMSE: ' + str(yRMSE) + ' m')
 print('Heading RMSE: ' + str(thetaRMSE) + ' rad')
-
-with open('e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy', 'wb') as f:
-    np.save(f, xvec)
-with open('e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy', 'rb') as f:
-    xvec_temp = np.load(f)
 
 # ================================
 #           Plot

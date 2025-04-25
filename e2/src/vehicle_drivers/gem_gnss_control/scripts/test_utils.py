@@ -1,23 +1,31 @@
 from control_utils import CarModel
 import numpy as np
 import matplotlib.pyplot as plt
+from math import sin, cos, tan, sqrt, atan2
+
+def car_dx(theta, delta, v, L=1.75):
+    dx = np.zeros(3)
+    dx[0] = v*cos(theta)
+    dx[1] = v*sin(theta)
+    dx[2] = v/L*tan(delta)
+    return dx
 
 # =================================================
 #       Front wheel and steering wheel angles
 # =================================================
-# GEM = CarModel(
-#     carLength = 1.75,
-#     steerSpeed = 2.5*35/630,
-#     approx_steerTau = 5.0,
-#     carAccel = 2.0,
-#     carDecel = -5.0,
-#     carDamp = 2.0/11.1,
-#     steerLimits = (-np.pi*35/180, np.pi*35/180),
-#     throttleLimits = (0.2, 0.5),
-#     throttleRateLimits = (-1.0, .25),
-#     brakeLimits = (0.0, 1.0),
-#     brakeRateLimits = (-5.0, 5.0)
-# )
+GEM = CarModel(
+    carLength = 1.75,
+    steerSpeed = 2.5*35/630,
+    approx_steerTau = 5.0,
+    carAccel = 2.0,
+    carDecel = -5.0,
+    carDamp = 2.0/11.1,
+    steerLimits = (-np.pi*35/180, np.pi*35/180),
+    throttleLimits = (0.2, 0.5),
+    throttleRateLimits = (-1.0, .25),
+    brakeLimits = (0.0, 1.0),
+    brakeRateLimits = (-5.0, 5.0)
+)
 
 # delta1 = np.linspace(-1, 1, 100, endpoint=True)
 # steer1 = np.array([0.0]*len(delta1))
@@ -50,9 +58,26 @@ xvec = data[:,1:6]
 uvec = data[:,6:9]
 evec = data[:,9:11]
 
+# if xvec[:,3] is steering wheel (degree) instead of delta (rad)
+for i in range(len(xvec)):
+    xvec[i,3] = GEM.steer2delta(np.radians(xvec[i,3]))
+    uvec[i,0] = GEM.steer2delta(np.radians(uvec[i,0]))
+
+# Estimate location
+x_est = np.zeros((len(xvec), 3))    # x, y, theta
+x_est[0,:] = xvec[0,0:3]
+for i in range(len(xvec)):
+    if i > 0:
+        dt = tvec[i] - tvec[i-1]
+        dx = car_dx(theta=x_est[i-1,2], delta=xvec[i-1,3], v=xvec[i-1,4], L=1.75)
+        x_est[i,0] = x_est[i-1,0] + dx[0]*dt
+        x_est[i,1] = x_est[i-1,1] + dx[1]*dt
+        x_est[i,2] = x_est[i-1,2] + dx[2]*dt
+
 plt.subplot(2,2,1)
-plt.plot(lane_x, lane_y, label='lane', c='black', ls='--', lw=1)
-plt.plot(xvec[:,0], xvec[:,1], label='car', c='red', ls='-', lw=1.5)
+plt.plot(lane_x, lane_y, 'k--', lw=1, label='lane')
+plt.plot(xvec[:,0], xvec[:,1], 'r-', lw=1.5, label='car')
+# plt.plot(x_est[:,0], x_est[:,1], 'm--', lw=1, label='est')
 plt.xlabel('X (m)')
 plt.ylabel('Y (m)')
 plt.grid()
@@ -70,8 +95,9 @@ plt.legend()
 plt.title('Cross-track error')
 
 plt.subplot(2,2,3)
-plt.plot(tvec, uvec[:,0]*180/np.pi, label='command', lw=.7)
-plt.plot(tvec, xvec[:,3]*180/np.pi, label='actual', c='red', lw=1)
+plt.plot(tvec, uvec[:,0]*180/np.pi, 'k--', lw=.7, label='command')
+plt.plot(tvec, xvec[:,3]*180/np.pi, 'k-', lw=1, label='actual')
+plt.plot(tvec, xvec[:,2]*180/np.pi, 'b-', lw=1, label='heading')
 plt.xlabel('Time (s)')
 plt.ylabel('deg')
 plt.grid()
@@ -80,9 +106,9 @@ plt.title('Steering angle')
 
 plt.subplot(2,2,4)
 # plt.plot(tvec[:i], xrefvec[:i,4], label='desired', c='black', ls='--', lw=.7)
-plt.plot(tvec, xvec[:,4], label='actual', c='black', ls='-', lw=1)
-plt.plot(tvec, uvec[:,1], label='throttle', c='blue', ls='--', lw=1)
-plt.plot(tvec, uvec[:,2], label='brake', c='red', ls='--', lw=1)
+plt.plot(tvec, xvec[:,4], 'k-', lw=1, label='actual')
+plt.plot(tvec, uvec[:,1], 'b--', lw=1, label='throttle')
+plt.plot(tvec, uvec[:,2], 'r--', lw=1, label='brake')
 plt.xlabel('Time (s)')
 plt.ylabel('m/s')
 plt.grid()

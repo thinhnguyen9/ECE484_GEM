@@ -47,8 +47,9 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logname    = str(self.start_time) + ".npy"
         self.logtime    = 140.0      # seconds of data to log
+        # self.logname    = str(self.start_time) + "_PP_control_" + str(int(self.logtime)) + "sec.npy"
+        self.logname    = "TEST_PP_control_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
         self.tools      = Aux()
@@ -186,12 +187,14 @@ class PurePursuit(object):
         # convert GNSS waypoints into local fixed frame reprented in x and y
         # lon_wp_x, lat_wp_y = axy.ll2xy(lat_wp, lon_wp, self.olat, self.olon)
 
-        latrad = self.olat*np.pi/180.0 
-        mdeglon = 111415.13*np.cos(latrad) - 94.55*np.cos(3.0*latrad) + 0.12*np.cos(5.0*latrad)
-        mdeglat = 111132.09 - 566.05*np.cos(2.0*latrad) + 1.20*np.cos(4.0*latrad) - 0.002*np.cos(6.0*latrad)
+        # latrad = self.olat*np.pi/180.0 
+        # mdeglon = 111415.13*np.cos(latrad) - 94.55*np.cos(3.0*latrad) + 0.12*np.cos(5.0*latrad)
+        # mdeglat = 111132.09 - 566.05*np.cos(2.0*latrad) + 1.20*np.cos(4.0*latrad) - 0.002*np.cos(6.0*latrad)
 
-        lon_wp_x = (lon_wp - self.olon) * mdeglon
-        lat_wp_y = (lat_wp - self.olat) * mdeglat
+        # lon_wp_x = (lon_wp - self.olon) * mdeglon
+        # lat_wp_y = (lat_wp - self.olat) * mdeglat
+
+        lon_wp_x, lat_wp_y = self.tools.ll2xy(lat_wp, lon_wp, self.olat, self.olon)
         return lon_wp_x, lat_wp_y   
 
     def get_gem_state(self):
