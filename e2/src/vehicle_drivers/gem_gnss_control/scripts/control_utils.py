@@ -198,8 +198,8 @@ class Aux():
         # return ct_err, hd_err
     
         # tránh trường hợp wpList ko đúng chiều di chuyển của xe
-        currLoc = currState[:2]
-        currTheta = currState[2]
+        currLoc = np.array(currState[:2])
+        currTheta = np.array(currState[2])
         wp = np.array(self.fit_line(wpList))    # np.array([[x1,y1],[x2,y2]])
         path = wp[1] - wp[0]
         hd_err = currTheta - atan2(path[1], path[0])
@@ -217,7 +217,9 @@ class Aux():
             while hd_err < -np.pi:
                 hd_err = hd_err + 2*np.pi
         ct_err = self.point_line_distance(currLoc, wp)
-        print(wp)
+        # print(np.int_(currLoc*100))
+        # print(np.int_(wp*100))
+        # print("\n")
         return ct_err, hd_err
 
     def ll2xy(self, lat, lon, olat, olon):
