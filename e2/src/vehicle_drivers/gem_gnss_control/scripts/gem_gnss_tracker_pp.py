@@ -282,10 +282,12 @@ class PurePursuit(object):
             while len(idxList) < 2 and r < 5:   # need at least 2 points to do line fit
                 r += 0.1
                 idxList = np.where(self.dist_arr < r)[0]
-            print(str(len(idxList)) + " waypoints for r=" + str(r))
+            # print(str(len(idxList)) + " waypoints for r=" + str(r))
             if len(idxList) >= 2:
                 wpList = [(self.path_points_x[i], self.path_points_y[i]) for i in idxList]
                 ct_err_actual, hd_err_actual = self.tools.ErrorsFromWaypoints((curr_x, curr_y, curr_yaw), wpList)
+                ct_err_actual = 0 - ct_err_actual
+                hd_err_actual = 0 - hd_err_actual
             else:
                 print('Wtf no wp found ??')
                 ct_err_actual, hd_err_actual = None, None
@@ -325,14 +327,14 @@ class PurePursuit(object):
             # steering_angle in degrees
             steering_angle = self.front2steer(f_delta_deg)
 
-            if(self.gem_enable == True):
-                print("Current index: " + str(self.goal))
-                print("Forward velocity: " + str(self.speed))
-                ct_error = round(np.sin(alpha) * L, 3)
-                print("Crosstrack Error: " + str(ct_error))
-                print("Front steering angle: " + str(np.degrees(f_delta)) + " degrees")
-                print("Steering wheel angle: " + str(steering_angle) + " degrees" )
-                print("\n")
+            # if(self.gem_enable == True):
+            #     print("Current index: " + str(self.goal))
+            #     print("Forward velocity: " + str(self.speed))
+            #     ct_error = round(np.sin(alpha) * L, 3)
+            #     print("Crosstrack Error: " + str(ct_error))
+            #     print("Front steering angle: " + str(np.degrees(f_delta)) + " degrees")
+            #     print("Steering wheel angle: " + str(steering_angle) + " degrees" )
+            #     print("\n")
 
             current_time = rospy.get_time()
             filt_vel     = self.speed_filter.get_data(self.speed)
@@ -392,6 +394,7 @@ class PurePursuit(object):
                         print(f"Error during save: {e}")
                     
                     self.logdone = True
+                    break   # stop running when data is logged
             # ====================================================================================================
 
             self.rate.sleep()

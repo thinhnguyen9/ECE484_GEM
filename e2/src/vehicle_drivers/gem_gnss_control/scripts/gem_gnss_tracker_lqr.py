@@ -290,10 +290,12 @@ class PurePursuit(object):
             while len(idxList) < 2 and r < 5:   # need at least 2 points to do line fit
                 r += 0.1
                 idxList = np.where(self.dist_arr < r)[0]
-            print(str(len(idxList)) + " waypoints for r=" + str(r))
+            # print(str(len(idxList)) + " waypoints for r=" + str(r))
             if len(idxList) >= 2:
                 wpList = [(self.path_points_x[i], self.path_points_y[i]) for i in idxList]
                 ct_err_actual, hd_err_actual = self.tools.ErrorsFromWaypoints(x0[:3], wpList)
+                ct_err_actual = xref[1] - ct_err_actual
+                hd_err_actual = xref[2] - hd_err_actual
             else:
                 print('Wtf no wp found ??')
                 ct_err_actual, hd_err_actual = None, None
@@ -379,6 +381,7 @@ class PurePursuit(object):
                         print(f"Error during save: {e}")
                     
                     self.logdone = True
+                    break   # stop running when data is logged
             # ====================================================================================================
 
             self.rate.sleep()

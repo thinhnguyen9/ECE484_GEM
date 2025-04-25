@@ -1,4 +1,4 @@
-from control_utils import CarModel
+from control_utils import CarModel, Aux
 import numpy as np
 import matplotlib.pyplot as plt
 from math import sin, cos, tan, sqrt, atan2
@@ -46,10 +46,21 @@ GEM = CarModel(
 # plt.show()
 
 # =================================================
+#                  Control utils
+# =================================================
+# tools = Aux()
+# point = np.array([1535, -136])
+# line = np.array([[1497, 15], [1507, 15]])
+# d = tools.point_line_distance(point, line)
+# print(d)
+
+
+# =================================================
 #              Plot experiment data
 # =================================================
-# with open('e2\\src\\vehicle_drivers\\gem_gnss_control\\scripts\\test.npy', 'rb') as f:
-with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/pp_control.npy', 'rb') as f:
+# with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/pp_control.npy', 'rb') as f:
+# with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_PP_control_140sec.npy', 'rb') as f:
+with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec.npy', 'rb') as f:
     data = np.load(f)
     lane_x = np.load(f)
     lane_y = np.load(f)
@@ -59,9 +70,9 @@ uvec = data[:,6:9]
 evec = data[:,9:11]
 
 # if xvec[:,3] is steering wheel (degree) instead of delta (rad)
-for i in range(len(xvec)):
-    xvec[i,3] = GEM.steer2delta(np.radians(xvec[i,3]))
-    uvec[i,0] = GEM.steer2delta(np.radians(uvec[i,0]))
+# for i in range(len(xvec)):
+#     xvec[i,3] = GEM.steer2delta(np.radians(xvec[i,3]))
+#     uvec[i,0] = GEM.steer2delta(np.radians(uvec[i,0]))
 
 # Estimate location
 x_est = np.zeros((len(xvec), 3))    # x, y, theta
@@ -116,3 +127,4 @@ plt.legend()
 plt.title('Car velocity')
 
 plt.show()
+
