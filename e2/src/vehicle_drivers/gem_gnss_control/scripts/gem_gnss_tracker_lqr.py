@@ -25,6 +25,8 @@ import scipy.signal as signal
 from filters import OnlineFilter
 from pid_controllers import PID
 from control_utils import CarModel, LQR, Aux    # Thinh
+from math import sin, cos, sqrt, tan
+import matplotlib.pyplot as plt
 
 # ROS Headers
 # import alvinxy.alvinxy as axy # Import AlvinXY transformation module
@@ -47,7 +49,7 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 140.0      # seconds of data to log
+        self.logtime    = 10.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
         self.logname    = "TEST_LQR_control_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
@@ -92,6 +94,16 @@ class PurePursuit(object):
                         1/(self.GEM.throttle_max**2),
                         100/(self.GEM.brake_max**2) ])
         self.carLQR.setWeight(Q, R)
+        # -------------------- Kalman filter --------------------
+        A,B = self.GEM.linearize(np.array([0, 0, 0, 0, self.vref]))
+        A = A[1:3,1:3]  # y, theta
+        C = np.array([[1., 0.], [0., 1.]])  # can measure y, theta
+        self.KF = LQR(n=2, m=2)
+        self.KF.setModel(A.T, C.T)
+        V = np.diag([1e-3, 1e-3])   # measurement noise covariance
+        W = np.diag([1., 1.])       # process noise covariance - TODO: tune
+        self.KF.setWeight(W, V)
+        self.KF.calculateGain()
 
         # -------------------- ROS setup --------------------
         # self.gnss_sub_old   = rospy.Subscriber("/novatel/inspva", Inspva, self.inspva_callback)
@@ -213,8 +225,8 @@ class PurePursuit(object):
         curr_yaw = self.heading_to_yaw(self.heading) 
 
         # reference point is located at the center of rear axle
-        curr_x = local_x_curr - self.offset * np.cos(curr_yaw)
-        curr_y = local_y_curr - self.offset * np.sin(curr_yaw)
+        curr_x = local_x_curr - self.offset * cos(curr_yaw)
+        curr_y = local_y_curr - self.offset * sin(curr_yaw)
 
         return round(curr_x, 3), round(curr_y, 3), round(curr_yaw, 4)
 
@@ -227,6 +239,14 @@ class PurePursuit(object):
         # u = np.zeros(self.GEM.m)
         xref = np.array([0.0, 0.0, 0.0, 0.0, self.vref])
         time_step = 0
+
+        # For Kalman filter
+        x_e = np.zeros(2)   # initial estimate [y, theta]
+        dx_e = np.zeros(2)  # initial estimate derivatives
+        xhat = []   # estimated ct_err and hd_err
+
+        # Wait for GNSS data and waypoints to be loaded
+        rospy.sleep(1.0)
         
         while not rospy.is_shutdown():
 
@@ -330,6 +350,26 @@ class PurePursuit(object):
             u0 = u
             time_step += 1
 
+            # ----------------- Kalman filter -----------------
+            # Estimate y, theta with low-frequency measurements
+
+            # Current estimation (x_e at time t)
+            x_e += dx_e*dt
+
+            # Current derivative (for x_e at time t+1): dx = Ax + Bu + L(y-Cx)
+            meas_update = np.zeros(2)
+            if time_step % 1 == 0: # new measurements available
+                if ct_err_actual is None or hd_err_actual is None:
+                    y_meas = 0.
+                    theta_meas = 0.
+                else:
+                    y_meas = xref[1] - ct_err_actual
+                    theta_meas = xref[2] - hd_err_actual
+                y = np.array([y_meas, theta_meas])
+                meas_update = self.KF.K.T @ (y - x_e)
+            dx_e[0] = x0[4]*sin(x_e[1]) + meas_update[0]    # dy = v*sin(theta)
+            dx_e[1] = x0[4]/self.wheelbase*tan(x0[3]) + meas_update[1]  # dtheta = v/L*tan(delta)
+
             # ----------------- Publish control -----------------
             # if (f_delta_deg <= 30 and f_delta_deg >= -30):
             #     self.turn_cmd.ui16_cmd = 1
@@ -355,6 +395,7 @@ class PurePursuit(object):
                               u[0], u[1], u[2],
                               ct_err_actual, hd_err_actual ]
                     self.logdata.append([float(x) if x is not None else 0.0 for x in entry])
+                    xhat.append([xref[1]-x_e[0], xref[2]-x_e[1]])
                 else:
                     # Debug: check problematic entries
                     problem_entries = []
@@ -381,6 +422,25 @@ class PurePursuit(object):
                         print(f"Error during save: {e}")
                     
                     self.logdone = True
+                    # ----------------- Plot here cause i'm lazy -----------------
+                    plt.subplot(1,2,1)
+                    plt.plot(data_array[:,0], data_array[:,9], 'k--', lw=1, label='actual')
+                    plt.plot(data_array[:,0], xhat[:,0], 'k-', lw=1, label='estimated')
+                    plt.xlabel('Time (s)')
+                    plt.ylabel('m')
+                    plt.grid()
+                    plt.legend()
+                    plt.title('Cross-track error')
+
+                    plt.subplot(1,2,2)
+                    plt.plot(data_array[:,0], data_array[:,10], 'k--', lw=1, label='actual')
+                    plt.plot(data_array[:,0], xhat[:,1], 'k-', lw=1, label='estimated')
+                    plt.xlabel('Time (s)')
+                    plt.ylabel('rad')
+                    plt.grid()
+                    plt.legend()
+                    plt.title('Heading error')
+                    # ------------------------------------------------------------
                     break   # stop running when data is logged
             # ====================================================================================================
 

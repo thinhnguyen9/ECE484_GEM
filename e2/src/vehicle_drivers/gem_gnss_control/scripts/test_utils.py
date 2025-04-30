@@ -1,4 +1,4 @@
-from control_utils import CarModel, Aux
+from control_utils import CarModel, LQR, Aux
 import numpy as np
 import matplotlib.pyplot as plt
 from math import sin, cos, tan, sqrt, atan2
@@ -59,8 +59,8 @@ GEM = CarModel(
 #              Plot experiment data
 # =================================================
 # with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/pp_control.npy', 'rb') as f:
-# with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_PP_control_140sec.npy', 'rb') as f:
-with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec.npy', 'rb') as f:
+with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_PP_control_140sec.npy', 'rb') as f:
+# with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec.npy', 'rb') as f:
     data = np.load(f)
     lane_x = np.load(f)
     lane_y = np.load(f)
@@ -70,17 +70,30 @@ uvec = data[:,6:9]
 evec = data[:,9:11]
 
 # if xvec[:,3] is steering wheel (degree) instead of delta (rad)
-# for i in range(len(xvec)):
-#     xvec[i,3] = GEM.steer2delta(np.radians(xvec[i,3]))
-#     uvec[i,0] = GEM.steer2delta(np.radians(uvec[i,0]))
+for i in range(len(xvec)):
+    xvec[i,3] = GEM.steer2delta(np.radians(xvec[i,3]))
+    uvec[i,0] = GEM.steer2delta(np.radians(uvec[i,0]))
 
-# Estimate location
+# ------------- Kalman filter -------------
 x_est = np.zeros((len(xvec), 3))    # x, y, theta
 x_est[0,:] = xvec[0,0:3]
+A,B = GEM.linearize(np.array([0, 0, 0, 0, 1.5]))
+A = A[1:3,1:3]  # y, theta
+C = np.array([[1., 0.], [0., 1.]])  # can measure y, theta
+KF = LQR(n=2, m=2)
+KF.setModel(A.T, C.T)
+V = np.diag([1e-3, 1e-3])   # measurement noise covariance
+W = np.diag([1., 1.])   # process noise covariance - TODO: tune
+KF.setWeight(W, V)
+KF.calculateGain()
+update = np.zeros(3)
 for i in range(len(xvec)):
     if i > 0:
         dt = tvec[i] - tvec[i-1]
         dx = car_dx(theta=x_est[i-1,2], delta=xvec[i-1,3], v=xvec[i-1,4], L=1.75)
+        if i % 10 == 0:
+            update[1:3] = KF.K.T @ (xvec[i-1,1:3] - x_est[i-1,1:3])
+            dx += update
         x_est[i,0] = x_est[i-1,0] + dx[0]*dt
         x_est[i,1] = x_est[i-1,1] + dx[1]*dt
         x_est[i,2] = x_est[i-1,2] + dx[2]*dt
@@ -88,7 +101,7 @@ for i in range(len(xvec)):
 plt.subplot(2,2,1)
 plt.plot(lane_x, lane_y, 'k--', lw=1, label='lane')
 plt.plot(xvec[:,0], xvec[:,1], 'r-', lw=1.5, label='car')
-# plt.plot(x_est[:,0], x_est[:,1], 'm--', lw=1, label='est')
+plt.plot(x_est[:,0], x_est[:,1], 'm--', lw=1, label='est')
 plt.xlabel('X (m)')
 plt.ylabel('Y (m)')
 plt.grid()

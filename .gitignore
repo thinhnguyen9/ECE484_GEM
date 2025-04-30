@@ -1,3 +1,5 @@
 __pycache__/
+**/__pycache__/
 *.pyc
 *.log
+e2/src/vehicle_drivers/gem_gnss_control/scripts/test.npy
