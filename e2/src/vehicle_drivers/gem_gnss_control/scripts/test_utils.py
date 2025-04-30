@@ -58,9 +58,16 @@ GEM = CarModel(
 # =================================================
 #              Plot experiment data
 # =================================================
-# with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/pp_control.npy', 'rb') as f:
-with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_PP_control_140sec.npy', 'rb') as f:
-# with open('e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec.npy', 'rb') as f:
+file = 'lqr'     # pp or lqr
+
+
+if file=='pp':
+    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_PP_control_140sec.npy'
+elif file=='lqr':
+    # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec.npy'
+    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter.npy'
+    # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter_lin=0.npy'
+with open(filename, 'rb') as f:
     data = np.load(f)
     lane_x = np.load(f)
     lane_y = np.load(f)
@@ -68,11 +75,14 @@ tvec = data[:,0] - data[0,0]
 xvec = data[:,1:6]
 uvec = data[:,6:9]
 evec = data[:,9:11]
+if file=='lqr':
+    ehat = data[:,11:13]
+if file=='pp':
+    # if xvec[:,3] is steering wheel (degree) instead of delta (rad)
+    for i in range(len(xvec)):
+        xvec[i,3] = GEM.steer2delta(np.radians(xvec[i,3]))
+        uvec[i,0] = GEM.steer2delta(np.radians(uvec[i,0]))
 
-# if xvec[:,3] is steering wheel (degree) instead of delta (rad)
-for i in range(len(xvec)):
-    xvec[i,3] = GEM.steer2delta(np.radians(xvec[i,3]))
-    uvec[i,0] = GEM.steer2delta(np.radians(uvec[i,0]))
 
 # ------------- Kalman filter -------------
 x_est = np.zeros((len(xvec), 3))    # x, y, theta
@@ -101,7 +111,7 @@ for i in range(len(xvec)):
 plt.subplot(2,2,1)
 plt.plot(lane_x, lane_y, 'k--', lw=1, label='lane')
 plt.plot(xvec[:,0], xvec[:,1], 'r-', lw=1.5, label='car')
-plt.plot(x_est[:,0], x_est[:,1], 'm--', lw=1, label='est')
+# plt.plot(x_est[:,0], x_est[:,1], 'm--', lw=1, label='est')
 plt.xlabel('X (m)')
 plt.ylabel('Y (m)')
 plt.grid()
@@ -110,8 +120,11 @@ plt.title('2D path')
 plt.axis('equal')
 
 plt.subplot(2,2,2)
-plt.plot(tvec, evec[:,0], label='cross-track err (m)', lw=1)
-plt.plot(tvec, evec[:,1], label='heading err (rad)', lw=1)
+plt.plot(tvec, evec[:,0], 'r-', lw=1, label='cross-track err (m)')
+plt.plot(tvec, evec[:,1], 'b-', lw=1, label='heading err (rad)')
+if file=='lqr':
+    plt.plot(tvec, ehat[:,0], 'r--', lw=.7, label='ct_est')
+    plt.plot(tvec, ehat[:,1], 'b--', lw=.7, label='hd_est')
 plt.xlabel('Time (s)')
 plt.ylabel('m, rad')
 plt.grid()
