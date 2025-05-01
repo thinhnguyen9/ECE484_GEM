@@ -62,11 +62,13 @@ file = 'lqr'     # pp or lqr
 
 
 if file=='pp':
-    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_PP_control_140sec.npy'
+    # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_PP_control_140sec.npy'
+    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRRun_PP_control_150sec.npy'
 elif file=='lqr':
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec.npy'
-    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter.npy'
+    # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter_lin=0.npy'
+    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_LQR_control_20sec.npy'
 with open(filename, 'rb') as f:
     data = np.load(f)
     lane_x = np.load(f)

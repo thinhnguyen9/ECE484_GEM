@@ -49,13 +49,13 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 140.0      # seconds of data to log
+        self.logtime    = 20.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
-        self.logname    = "TEST_LQR_control_" + str(int(self.logtime)) + "sec.npy"
+        self.logname    = "ActualRun_LQR_control_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
 
-        self.look_ahead = 2
+        self.look_ahead = 1
         self.r          = 0.3  # radius to look around, depends on the distance between waypoints
         self.wheelbase  = 1.75 # meters
         self.offset     = 0.46 # meters
@@ -72,27 +72,28 @@ class PurePursuit(object):
             carDamp = 2.0/11.1,
             steerLimits = (-np.pi*35/180, np.pi*35/180),
             throttleLimits = (0.2, 0.5),
-            throttleRateLimits = (-1.0, .25),
+            # throttleRateLimits = (-1.0, 1.0),
+            throttleRateLimits = (-.1, .1),
             brakeLimits = (0.0, 1.0),
             brakeRateLimits = (-5.0, 5.0)
         )
         self.MPC_horizon = 1        # optimize every ... steps
-        self.linearize_method = 1   # linearize the system around:
+        self.linearize_method = 0   # linearize the system around:
                                     # 0 - velocity only (safer)
                                     # 1 - full states (more optimized, less stable)
         self.carLQR = LQR(n=self.GEM.n-1, m=self.GEM.m)
         # Tune these
-        maxY = .1                   # max allowable cross-track error
-        maxTheta = np.pi*5/180      # max allowable heading error
+        maxY = 10.                   # max allowable cross-track error
+        maxTheta = np.pi*25/180      # max allowable heading error
         maxDelta = np.pi*5/180      # max allowable steering angle error
-        maxV = .1                   # max allowable velocity error
+        maxV = .8                   # max allowable velocity error
         Q = np.diag([   1/(maxY**2),
                         1/(maxTheta**2),
                         1/(maxDelta**2),
                         1/(maxV**2) ])   # [y, theta, delta, v] - x is removed
-        R = np.diag([   1/(self.GEM.delta_max**2),
-                        1/(self.GEM.throttle_max**2),
-                        100/(self.GEM.brake_max**2) ])
+        R = np.diag([   10/(self.GEM.delta_max**2),
+                        2/(self.GEM.throttle_max**2),
+                        500/(self.GEM.brake_max**2) ])
         self.carLQR.setWeight(Q, R)
         # -------------------- Kalman filter --------------------
         A,B = self.GEM.linearize(np.array([0, 0, 0, 0, self.vref]))
