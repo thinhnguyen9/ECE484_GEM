@@ -51,11 +51,11 @@ class PurePursuit(object):
         self.last_time  = self.start_time
         self.logtime    = 20.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
-        self.logname    = "ActualRun_LQR_control_" + str(int(self.logtime)) + "sec.npy"
+        self.logname    = "ActualRun_0502_LQR_control_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
 
-        self.look_ahead = 1
+        self.look_ahead = 2.
         self.r          = 0.3  # radius to look around, depends on the distance between waypoints
         self.wheelbase  = 1.75 # meters
         self.offset     = 0.46 # meters
@@ -74,8 +74,8 @@ class PurePursuit(object):
             throttleLimits = (0.2, 0.5),
             # throttleRateLimits = (-1.0, 1.0),
             throttleRateLimits = (-.1, .1),
-            brakeLimits = (0.0, 1.0),
-            brakeRateLimits = (-5.0, 5.0)
+            brakeLimits = (.0, .5),
+            brakeRateLimits = (-5., .5)
         )
         self.MPC_horizon = 1        # optimize every ... steps
         self.linearize_method = 0   # linearize the system around:
@@ -83,17 +83,17 @@ class PurePursuit(object):
                                     # 1 - full states (more optimized, less stable)
         self.carLQR = LQR(n=self.GEM.n-1, m=self.GEM.m)
         # Tune these
-        maxY = 10.                   # max allowable cross-track error
+        maxY = .5                   # max allowable cross-track error
         maxTheta = np.pi*25/180      # max allowable heading error
         maxDelta = np.pi*5/180      # max allowable steering angle error
-        maxV = .8                   # max allowable velocity error
+        maxV = .5                   # max allowable velocity error
         Q = np.diag([   1/(maxY**2),
                         1/(maxTheta**2),
                         1/(maxDelta**2),
                         1/(maxV**2) ])   # [y, theta, delta, v] - x is removed
-        R = np.diag([   10/(self.GEM.delta_max**2),
-                        2/(self.GEM.throttle_max**2),
-                        500/(self.GEM.brake_max**2) ])
+        R = np.diag([   100/(self.GEM.delta_max**2),
+                        1/(self.GEM.throttle_max**2),
+                        200/(self.GEM.brake_max**2) ])
         self.carLQR.setWeight(Q, R)
         # -------------------- Kalman filter --------------------
         A,B = self.GEM.linearize(np.array([0, 0, 0, 0, self.vref]))
@@ -346,8 +346,9 @@ class PurePursuit(object):
                 K = np.hstack((np.zeros((self.GEM.m, 1)), self.carLQR.K))
             u = K.dot(xref.T - xbar.T)
             u = self.GEM.saturateControl(u, u0, dt)
-            # dx = self.GEM.dx(x0, u)
-            # x0 = x0 + dx*dt
+            # only change throttle if speed error is significant - prevent oscillation
+            if abs(self.vref - self.speed) < 0.1:
+                u[1] = u0[1]
             u0 = u
             time_step += 1
 
