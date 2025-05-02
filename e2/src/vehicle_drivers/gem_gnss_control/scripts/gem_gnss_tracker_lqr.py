@@ -49,13 +49,13 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 20.0      # seconds of data to log
+        self.logtime    = 60.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
         self.logname    = "ActualRun_0502_LQR_control_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
 
-        self.look_ahead = 2.
+        self.look_ahead = 4.
         self.r          = 0.3  # radius to look around, depends on the distance between waypoints
         self.wheelbase  = 1.75 # meters
         self.offset     = 0.46 # meters
@@ -83,17 +83,17 @@ class PurePursuit(object):
                                     # 1 - full states (more optimized, less stable)
         self.carLQR = LQR(n=self.GEM.n-1, m=self.GEM.m)
         # Tune these
-        maxY = .5                   # max allowable cross-track error
-        maxTheta = np.pi*25/180      # max allowable heading error
+        maxY = .3                   # max allowable cross-track error
+        maxTheta = np.pi*10/180      # max allowable heading error
         maxDelta = np.pi*5/180      # max allowable steering angle error
-        maxV = .5                   # max allowable velocity error
+        maxV = .1                   # max allowable velocity error
         Q = np.diag([   1/(maxY**2),
                         1/(maxTheta**2),
                         1/(maxDelta**2),
                         1/(maxV**2) ])   # [y, theta, delta, v] - x is removed
         R = np.diag([   100/(self.GEM.delta_max**2),
                         1/(self.GEM.throttle_max**2),
-                        200/(self.GEM.brake_max**2) ])
+                        50/(self.GEM.brake_max**2) ])
         self.carLQR.setWeight(Q, R)
         # -------------------- Kalman filter --------------------
         A,B = self.GEM.linearize(np.array([0, 0, 0, 0, self.vref]))
@@ -170,7 +170,7 @@ class PurePursuit(object):
         self.steer_pub = rospy.Publisher('/pacmod/as_rx/steer_cmd', PositionWithSpeed, queue_size=1)
         self.steer_cmd = PositionWithSpeed()
         self.steer_cmd.angular_position = 0.0 # radians, -: clockwise, +: counter-clockwise
-        self.steer_cmd.angular_velocity_limit = 4.0 # radians/second
+        self.steer_cmd.angular_velocity_limit = 2.0 # radians/second
     
     def ins_callback(self, msg):
         self.heading = round(msg.heading, 6)

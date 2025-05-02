@@ -47,9 +47,9 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 150.0      # seconds of data to log
+        self.logtime    = 100.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_PP_control_" + str(int(self.logtime)) + "sec.npy"
-        self.logname    = "ActualRun_PP_control_" + str(int(self.logtime)) + "sec.npy"
+        self.logname    = "ActualRun_0502_PP_control_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
         self.tools      = Aux()
