@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 class CarModel():
 
-    def __init__(self, carLength, steerSpeed, carAccel, carDecel, carDamp, steerLimits, throttleLimits, brakeLimits, throttleRateLimits, brakeRateLimits, approx_steerTau):
+    def __init__(self, carLength, steerSpeed, carAccel, carDecel, carDamp, steerLimits, throttleLimits, brakeLimits, steerRateLimits, throttleRateLimits, brakeRateLimits, approx_steerTau):
         self.L = carLength
         self.deltaROC = steerSpeed  # (rad/s) rate of change for steering angle
         self.vAccel = carAccel      # (m/s^2) car acceleration for throttle = 1
@@ -12,6 +12,7 @@ class CarModel():
         self.vDamp = carDamp        # damping to slow the car down (a = -v_damp*v)
         self.steerTau = approx_steerTau     # approx. time constant (1st-order) of the steering angle (must be slower than actual)
         self.delta_min, self.delta_max = steerLimits[0], steerLimits[1]
+        self.deltaROC_min, self.deltaROC_max = steerRateLimits[0], steerRateLimits[1]
         self.throttle_min, self.throttle_max = throttleLimits[0], throttleLimits[1]
         self.throttleROC_min, self.throttleROC_max = throttleRateLimits[0], throttleRateLimits[1]
         self.brake_min, self.brake_max = brakeLimits[0], brakeLimits[1]
@@ -47,6 +48,7 @@ class CarModel():
     def saturateControl(self, u, u0, dt):
         if dt > 0:
             # Limit rate
+            u[0] = u0[0] + self.saturate((u[0] - u0[0])/dt, self.deltaROC_min, self.deltaROC_max)*dt
             u[1] = u0[1] + self.saturate((u[1] - u0[1])/dt, self.throttleROC_min, self.throttleROC_max)*dt
             u[2] = u0[2] + self.saturate((u[2] - u0[2])/dt, self.brakeROC_min, self.brakeROC_max)*dt
             # Limit value

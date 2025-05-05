@@ -21,6 +21,7 @@ GEM = CarModel(
     carDecel = -5.0,
     carDamp = 2.0/11.1,
     steerLimits = (-np.pi*35/180, np.pi*35/180),
+    steerRateLimits = (-2.*35/630, 2.*35/630),
     throttleLimits = (0.2, 0.5),
     throttleRateLimits = (-1.0, .25),
     brakeLimits = (0.0, 1.0),

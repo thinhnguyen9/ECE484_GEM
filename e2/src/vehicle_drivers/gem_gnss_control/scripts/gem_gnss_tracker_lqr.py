@@ -55,7 +55,7 @@ class PurePursuit(object):
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
 
-        self.look_ahead = 4.
+        self.look_ahead = 2.
         self.r          = 0.3  # radius to look around, depends on the distance between waypoints
         self.wheelbase  = 1.75 # meters
         self.offset     = 0.46 # meters
@@ -71,9 +71,9 @@ class PurePursuit(object):
             carDecel = -5.0,
             carDamp = 2.0/11.1,
             steerLimits = (-np.pi*35/180, np.pi*35/180),
-            throttleLimits = (0.2, 0.5),
-            # throttleRateLimits = (-1.0, 1.0),
-            throttleRateLimits = (-.1, .1),
+            steerRateLimits = (-2.*35/630, 2.*35/630),      # TODO: tune
+            throttleLimits = (.3, .4),                      # TODO: tune
+            throttleRateLimits = (-.1, .1),                 # TODO: tune
             brakeLimits = (.0, .5),
             brakeRateLimits = (-5., .5)
         )
@@ -82,16 +82,16 @@ class PurePursuit(object):
                                     # 0 - velocity only (safer)
                                     # 1 - full states (more optimized, less stable)
         self.carLQR = LQR(n=self.GEM.n-1, m=self.GEM.m)
-        # Tune these
+        # TODO: tune
         maxY = .3                   # max allowable cross-track error
         maxTheta = np.pi*10/180      # max allowable heading error
-        maxDelta = np.pi*5/180      # max allowable steering angle error
+        maxDelta = np.pi*10/180      # max allowable steering angle error
         maxV = .1                   # max allowable velocity error
         Q = np.diag([   1/(maxY**2),
                         1/(maxTheta**2),
                         1/(maxDelta**2),
                         1/(maxV**2) ])   # [y, theta, delta, v] - x is removed
-        R = np.diag([   100/(self.GEM.delta_max**2),
+        R = np.diag([   10/(self.GEM.delta_max**2),
                         1/(self.GEM.throttle_max**2),
                         50/(self.GEM.brake_max**2) ])
         self.carLQR.setWeight(Q, R)
@@ -101,8 +101,8 @@ class PurePursuit(object):
         C = np.array([[1., 0.], [0., 1.]])  # can measure y, theta
         self.KF = LQR(n=2, m=2)
         self.KF.setModel(A.T, C.T)
-        V = np.diag([1e-3, 1e-3])   # measurement noise covariance
-        W = np.diag([1.e-1, 1.e-1])       # process noise covariance - TODO: tune
+        V = np.diag([1e-3, 1e-3])       # measurement noise covariance
+        W = np.diag([1e-1, 2e-1])       # process noise covariance - TODO: tune
         self.KF.setWeight(W, V)
         self.KF.calculateGain()
 
@@ -170,7 +170,7 @@ class PurePursuit(object):
         self.steer_pub = rospy.Publisher('/pacmod/as_rx/steer_cmd', PositionWithSpeed, queue_size=1)
         self.steer_cmd = PositionWithSpeed()
         self.steer_cmd.angular_position = 0.0 # radians, -: clockwise, +: counter-clockwise
-        self.steer_cmd.angular_velocity_limit = 2.0 # radians/second
+        self.steer_cmd.angular_velocity_limit = 2.0 # radians/second    # TODO: tune
     
     def ins_callback(self, msg):
         self.heading = round(msg.heading, 6)
