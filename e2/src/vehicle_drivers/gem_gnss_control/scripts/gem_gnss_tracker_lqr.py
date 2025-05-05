@@ -49,9 +49,9 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 60.0      # seconds of data to log
+        self.logtime    = 150.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
-        self.logname    = "ActualRun_0502_LQR_control_" + str(int(self.logtime)) + "sec.npy"
+        self.logname    = "ActualRun_0505_LQR_control_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
 
@@ -71,7 +71,7 @@ class PurePursuit(object):
             carDecel = -5.0,
             carDamp = 2.0/11.1,
             steerLimits = (-np.pi*35/180, np.pi*35/180),
-            steerRateLimits = (-2.*35/630, 2.*35/630),      # TODO: tune
+            steerRateLimits = (-4.*35/630, 4.*35/630),      # TODO: tune
             throttleLimits = (.3, .4),                      # TODO: tune
             throttleRateLimits = (-.1, .1),                 # TODO: tune
             brakeLimits = (.0, .5),
@@ -91,9 +91,9 @@ class PurePursuit(object):
                         1/(maxTheta**2),
                         1/(maxDelta**2),
                         1/(maxV**2) ])   # [y, theta, delta, v] - x is removed
-        R = np.diag([   10/(self.GEM.delta_max**2),
+        R = np.diag([   1/(self.GEM.delta_max**2),
                         1/(self.GEM.throttle_max**2),
-                        50/(self.GEM.brake_max**2) ])
+                        20/(self.GEM.brake_max**2) ])
         self.carLQR.setWeight(Q, R)
         # -------------------- Kalman filter --------------------
         A,B = self.GEM.linearize(np.array([0, 0, 0, 0, self.vref]))
@@ -170,7 +170,7 @@ class PurePursuit(object):
         self.steer_pub = rospy.Publisher('/pacmod/as_rx/steer_cmd', PositionWithSpeed, queue_size=1)
         self.steer_cmd = PositionWithSpeed()
         self.steer_cmd.angular_position = 0.0 # radians, -: clockwise, +: counter-clockwise
-        self.steer_cmd.angular_velocity_limit = 2.0 # radians/second    # TODO: tune
+        self.steer_cmd.angular_velocity_limit = 4.0 # radians/second    # TODO: tune
     
     def ins_callback(self, msg):
         self.heading = round(msg.heading, 6)
