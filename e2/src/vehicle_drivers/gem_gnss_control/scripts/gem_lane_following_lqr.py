@@ -61,7 +61,15 @@ class PurePursuit(object):
         self.r          = 0.3  # radius to look around, depends on the distance between waypoints
         self.wheelbase  = 1.75 # meters
         self.offset     = 0.46 # meters
+        self.cam2rear   = 0.75 # distance between front camera and rear wheel axle
         self.vref       = 1.5  # m/s, reference speed
+
+        self.img_w      = 1280.
+        self.img_h      = 720.
+        self.p2m        = 4./700    # convert pixel -> meters (depends on lane detection unit)
+        self.img_T      = np.array([[1, 0, 0],
+                                    [0, -1, self.img_h],
+                                    [0, 0, 1]])
 
         # -------------------- Controller setup --------------------
         self.tools = Aux()
@@ -103,8 +111,8 @@ class PurePursuit(object):
         C = np.array([[1., 0.], [0., 1.]])  # can measure y, theta
         self.KF = LQR(n=2, m=2)
         self.KF.setModel(A.T, C.T)
-        V = np.diag([1e-3, 1e-3])       # measurement noise covariance
-        W = np.diag([1e-1, 2e-1])       # process noise covariance - TODO: tune
+        V = np.diag([1e-2, 1e-2])       # measurement noise covariance
+        W = np.diag([1e-1, 1e-1])       # process noise covariance - TODO: tune
         self.KF.setWeight(W, V)
         self.KF.calculateGain()
 
@@ -140,6 +148,7 @@ class PurePursuit(object):
         self.endgoal = np.zeros(2)  # [x, y]
         self.waypoints = []         # [[x1,y1], [x2,y2], ...] at current time t
         self.lane = []              # [[x1,y1], [x2,y2], ...] (endgoal) for time 0...T
+        self.new_waypoints_flag = False
 
         # -------------------- PACMod setup --------------------
 
@@ -204,15 +213,23 @@ class PurePursuit(object):
         Args:
             msg: PoseStamped message containing target position in image
         """
-        self.endgoal[0] = msg.pose.position.x
-        self.endgoal[1] = msg.pose.position.y
+        # self.endgoal[0] = msg.pose.position.x
+        # self.endgoal[1] = msg.pose.position.y
+
+        # endgoal in image coordinate
+        p0 = np.array([msg.pose.position.x, msg.pose.position.y, 1])
+        p1 = self.img_T @ p0
+        self.endgoal[0] = p1[0]*self.p2m
+        self.endgoal[1] = p1[1]*self.p2m
 
     def waypoints_callback(self, msg):
         if len(msg.poses) > 0:
             self.waypoints = []
             for posestamp in msg.poses:
-                wp = [posestamp.pose.position.x, posestamp.pose.position.y]
-                self.waypoints.append(wp)
+                wp0 = np.array([posestamp.pose.position.x, posestamp.pose.position.y, 1])
+                wp1 = self.img_T @ wp0
+                self.waypoints.append(wp1[:2]*self.p2m)
+            self.new_waypoints_flag = True
 
     def enable_callback(self, msg):
         self.pacmod_enable = msg.data
@@ -223,19 +240,6 @@ class PurePursuit(object):
         else:
             yaw_curr = np.radians(90 - heading_curr)
         return yaw_curr
-
-    # def read_waypoints(self):
-    #     # read recorded GPS lat, lon, heading
-    #     dirname  = os.path.dirname(__file__)
-    #     filename = os.path.join(dirname, '../waypoints/xyhead_demo_pp.csv')
-    #     with open(filename) as f:
-    #         path_points = [tuple(line) for line in csv.reader(f)]
-    #     # x towards East and y towards North
-    #     self.path_points_lon_x   = [float(point[0]) for point in path_points] # longitude
-    #     self.path_points_lat_y   = [float(point[1]) for point in path_points] # latitude
-    #     self.path_points_heading = [float(point[2]) for point in path_points] # heading
-    #     self.wp_size             = len(self.path_points_lon_x)
-    #     self.dist_arr            = np.zeros(self.wp_size)
 
     def wps_to_local_xy(self, lon_wp, lat_wp):
         # convert GNSS waypoints into local fixed frame reprented in x and y
@@ -324,46 +328,31 @@ class PurePursuit(object):
             curr_x, curr_y, curr_yaw = self.get_gem_state()
             x0 = np.array([curr_x, curr_y, curr_yaw, self.delta, self.speed])
 
-            """
-            # ----------------- Find waypoints -----------------
-            # finding the distance of each way point from the current position
-            for i in range(self.wp_size):
-                self.dist_arr[i] = self.tools.point_point_distance((self.path_points_x[i], self.path_points_y[i]), x0[:2])
-
-            # ----------------- Actual errors (for logging) -----------------
-            # 0.3m within (curr_x, curr_y)
-            r = 0.2
-            idxList = []
-            while len(idxList) < 2 and r < 5:   # need at least 2 points to do line fit
-                r += 0.1
-                idxList = np.where(self.dist_arr < r)[0]
-            # print(str(len(idxList)) + " waypoints for r=" + str(r))
-            if len(idxList) >= 2:
-                wpList = [(self.path_points_x[i], self.path_points_y[i]) for i in idxList]
-                ct_err_actual, hd_err_actual = self.tools.ErrorsFromWaypoints(x0[:3], wpList)
-                ct_err_actual = xref[1] - ct_err_actual
-                hd_err_actual = xref[2] - hd_err_actual
-            else:
-                print('Wtf no wp found ??')
-                ct_err_actual, hd_err_actual = None, None
-
-            # ----------------- Controller errors -----------------
-            # Calculate errors used for control - with lookahead
-            r = 0.2
-            idxList = []
-            while len(idxList) < 2 and r < 5:   # need at least 2 points to do line fit
-                r += 0.1
-                idxList = np.where( (self.dist_arr < self.look_ahead + r) & (self.dist_arr > self.look_ahead - r) )[0]
-            if len(idxList) >= 2:
-                wpList = [(self.path_points_x[i], self.path_points_y[i]) for i in idxList]
-                ct_err, hd_err = self.tools.ErrorsFromWaypoints(x0[:3], wpList)
+            # ----------------- Calculate errors -----------------
+            if len(self.waypoints) >= 2:
+                ct_err, hd_err = self.tools.ErrorsFromWaypoints([self.img_w/2, 0, np.pi/2], self.waypoints)  # self.waypoints are in car coordinates
             else:
                 ct_err, hd_err = 0.0, 0.0
-            """
 
-            """
+            # ----------------- Kalman filter -----------------
+            # Estimate y, theta with low-frequency measurements
+
+            # Current estimation (x_e at time t)
+            x_e += dx_e*dt
+
+            # Current derivative (for x_e at time t+1): dx = Ax + Bu + L(y-Cx)
+            meas_update = np.zeros(2)
+            if self.new_waypoints_flag: # new measurements available
+                y_meas = xref[1] - ct_err
+                theta_meas = xref[2] - hd_err
+                y = np.array([y_meas, theta_meas])
+                meas_update = self.KF.K.T @ (y - x_e)
+                self.new_waypoints_flag = False
+            dx_e[0] = x0[4]*sin(x_e[1]) + meas_update[0]    # dy = v*sin(theta)
+            dx_e[1] = x0[4]/self.wheelbase*tan(x0[3]) + meas_update[1]  # dtheta = v/L*tan(delta)
+
             # ----------------- Calculate control -----------------
-            xbar = np.array([0, ct_err, hd_err, x0[3], x0[4]])
+            xbar = np.array([0, x_e[0], x_e[1], x0[3], x0[4]])
             if time_step % self.MPC_horizon == 0:
                 if self.linearize_method == 0:
                     A, B = self.GEM.linearize(np.array([0, 0, 0, 0, x0[4]]))
@@ -379,26 +368,6 @@ class PurePursuit(object):
                 u[1] = u0[1]
             u0 = u
             time_step += 1
-
-            # ----------------- Kalman filter -----------------
-            # Estimate y, theta with low-frequency measurements
-
-            # Current estimation (x_e at time t)
-            x_e += dx_e*dt
-
-            # Current derivative (for x_e at time t+1): dx = Ax + Bu + L(y-Cx)
-            meas_update = np.zeros(2)
-            if time_step % 2 == 0: # new measurements available
-                if ct_err_actual is None or hd_err_actual is None:
-                    y_meas = 0.
-                    theta_meas = 0.
-                else:
-                    y_meas = xref[1] - ct_err_actual
-                    theta_meas = xref[2] - hd_err_actual
-                y = np.array([y_meas, theta_meas])
-                meas_update = self.KF.K.T @ (y - x_e)
-            dx_e[0] = x0[4]*sin(x_e[1]) + meas_update[0]    # dy = v*sin(theta)
-            dx_e[1] = x0[4]/self.wheelbase*tan(x0[3]) + meas_update[1]  # dtheta = v/L*tan(delta)
 
             # ----------------- Publish control -----------------
             # if (f_delta_deg <= 30 and f_delta_deg >= -30):
@@ -416,51 +385,54 @@ class PurePursuit(object):
             self.steer_pub.publish(self.steer_cmd)
             self.turn_pub.publish(self.turn_cmd)
             self.brake_pub.publish(self.brake_cmd)  # Thinh
-            """
 
             # ----------------- Log data -----------------
             if not self.logdone:
                 if current_time - self.start_time <= self.logtime:
-                    # entry = [ current_time,
-                    #           x0[0], x0[1], x0[2], x0[3], x0[4],
-                    #           u[0], u[1], u[2],
-                    #           ct_err_actual, hd_err_actual,
-                    #           xref[1]-x_e[0], xref[2]-x_e[1] ]
-                    # self.logdata.append([float(x) if x is not None else 0.0 for x in entry])
-                    # # xhat.append([xref[1]-x_e[0], xref[2]-x_e[1]])
+
+                    # Lane position in world frame (detected by camera)
                     th = -np.pi/2 + x0[2]
                     T = np.array([[cos(th), -sin(th), x0[0]],
                                   [sin(th), cos(th), x0[1]],
                                   [0, 0, 1]])
-                    p1 = np.array([self.endgoal[0], self.endgoal[1]+self.wheelbase, 1])    # endgoal in car frame (x+: to the right; y+: to the front)
+                    p1 = np.array([self.endgoal[0], self.endgoal[1]+self.cam2rear, 1])    # endgoal in car frame (x+: to the right; y+: to the front)
                     p0 = T @ p1     # endgoal in world frame (map)
-                    self.lane.append([p0[0], p0[1], x0[0], x0[1]])
-                else:
-                    # # Debug: check problematic entries
-                    # problem_entries = []
-                    # for i, entry in enumerate(self.logdata):
-                    #     if not isinstance(entry, list) or len(entry) != 13:
-                    #         problem_entries.append((i, entry))
-                            
-                    # if problem_entries:
-                    #     print(f"Found {len(problem_entries)} problematic entries:")
-                    #     for i, entry in problem_entries[:5]:  # Show up to 5 examples
-                    #         print(f"Index {i}: {entry}, type: {type(entry)}")
-                            
-                    # # Try saving with manual conversion
-                    # try:
-                    #     data_array = np.array(self.logdata, dtype=float)
-                    #     lane_x = self.path_points_x
-                    #     lane_y = self.path_points_y
-                    #     with open(self.logname, 'wb') as f:
-                    #         np.save(f, data_array)
-                    #         np.save(f, lane_x)
-                    #         np.save(f, lane_y)
-                    #     print("Data logged into " + self.logname)
-                    # except Exception as e:
-                    #     print(f"Error during save: {e}")
+                    self.lane.append([p0[0], p0[1]])
+
+                    entry = [ current_time,
+                              x0[0], x0[1], x0[2], x0[3], x0[4],
+                              u[0], u[1], u[2],
+                              ct_err, hd_err,
+                              xref[1]-x_e[0], xref[2]-x_e[1] ]
+                    self.logdata.append([float(x) if x is not None else 0.0 for x in entry])
                     
-                    # self.logdone = True
+                else:
+                    # Debug: check problematic entries
+                    problem_entries = []
+                    for i, entry in enumerate(self.logdata):
+                        if not isinstance(entry, list) or len(entry) != 13:
+                            problem_entries.append((i, entry))
+                            
+                    if problem_entries:
+                        print(f"Found {len(problem_entries)} problematic entries:")
+                        for i, entry in problem_entries[:5]:  # Show up to 5 examples
+                            print(f"Index {i}: {entry}, type: {type(entry)}")
+                            
+                    # Try saving with manual conversion
+                    try:
+                        data_array = np.array(self.logdata, dtype=float)
+                        lane = np.array(self.lane, dtype=float)
+                        lane_x = lane[:,0]
+                        lane_y = lane[:,1]
+                        with open(self.logname, 'wb') as f:
+                            np.save(f, data_array)
+                            np.save(f, lane_x)
+                            np.save(f, lane_y)
+                        print("Data logged into " + self.logname)
+                    except Exception as e:
+                        print(f"Error during save: {e}")
+                    
+                    self.logdone = True
                     # ----------------- Plot here cause i'm lazy -----------------
                     # xhat = np.array(xhat)
                     # plt.subplot(1,2,1)
@@ -481,17 +453,17 @@ class PurePursuit(object):
                     # plt.legend()
                     # plt.title('Heading error')
 
-                    self.lane = np.array(self.lane)
-                    plt.plot(self.lane[:,0], self.lane[:,1], 'k--', lw=1, label='lane')
-                    plt.plot(self.lane[:,2], self.lane[:,3], 'r-', lw=1.5, label='car')
-                    plt.xlabel('X (m)')
-                    plt.ylabel('Y (m)')
-                    plt.grid()
-                    plt.legend()
-                    plt.title('2D path')
-                    plt.axis('equal')
+                    # self.lane = np.array(self.lane)
+                    # plt.plot(self.lane[:,0], self.lane[:,1], 'k--', lw=1, label='lane')
+                    # plt.plot(self.lane[:,2], self.lane[:,3], 'r-', lw=1.5, label='car')
+                    # plt.xlabel('X (m)')
+                    # plt.ylabel('Y (m)')
+                    # plt.grid()
+                    # plt.legend()
+                    # plt.title('2D path')
+                    # plt.axis('equal')
 
-                    plt.show()
+                    # plt.show()
                     # ------------------------------------------------------------
                     break   # stop running when data is logged
             # ====================================================================================================
