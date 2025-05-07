@@ -51,9 +51,9 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 150.0      # seconds of data to log
+        self.logtime    = 60.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
-        self.logname    = "ActualRun_0505_LQR_control_" + str(int(self.logtime)) + "sec.npy"
+        self.logname    = "TEST_LQR_lanefollow_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
 
@@ -138,7 +138,8 @@ class PurePursuit(object):
         self.endgoal_sub = rospy.Subscriber("/lane_detection/endgoal", PoseStamped, self.endgoal_callback)
         self.waypoints_sub = rospy.Subscriber("/lane_detection/waypoints", Path, self.waypoints_callback)
         self.endgoal = np.zeros(2)  # [x, y]
-        self.waypoints = [] # [[x1,y1], [x2,y2], ...]
+        self.waypoints = []         # [[x1,y1], [x2,y2], ...] at current time t
+        self.lane = []              # [[x1,y1], [x2,y2], ...] (endgoal) for time 0...T
 
         # -------------------- PACMod setup --------------------
 
@@ -203,14 +204,15 @@ class PurePursuit(object):
         Args:
             msg: PoseStamped message containing target position in image
         """
-        self.endgoal_x = msg.pose.position.x
-        self.endgoal_y = msg.pose.position.y
+        self.endgoal[0] = msg.pose.position.x
+        self.endgoal[1] = msg.pose.position.y
 
     def waypoints_callback(self, msg):
-        # TODO
-        # self.endgoal_x = msg.pose.position.x
-        # self.endgoal_y = msg.pose.position.y
-        pass
+        if len(msg.poses) > 0:
+            self.waypoints = []
+            for posestamp in msg.poses:
+                wp = [posestamp.pose.position.x, posestamp.pose.position.y]
+                self.waypoints.append(wp)
 
     def enable_callback(self, msg):
         self.pacmod_enable = msg.data
@@ -318,13 +320,11 @@ class PurePursuit(object):
             current_time = rospy.get_time()
             dt = current_time - self.last_time
             self.last_time = current_time
-            
-            # self.path_points_x = np.array(self.path_points_lon_x)
-            # self.path_points_y = np.array(self.path_points_lat_y)
 
             curr_x, curr_y, curr_yaw = self.get_gem_state()
             x0 = np.array([curr_x, curr_y, curr_yaw, self.delta, self.speed])
 
+            """
             # ----------------- Find waypoints -----------------
             # finding the distance of each way point from the current position
             for i in range(self.wp_size):
@@ -359,7 +359,9 @@ class PurePursuit(object):
                 ct_err, hd_err = self.tools.ErrorsFromWaypoints(x0[:3], wpList)
             else:
                 ct_err, hd_err = 0.0, 0.0
+            """
 
+            """
             # ----------------- Calculate control -----------------
             xbar = np.array([0, ct_err, hd_err, x0[3], x0[4]])
             if time_step % self.MPC_horizon == 0:
@@ -414,43 +416,51 @@ class PurePursuit(object):
             self.steer_pub.publish(self.steer_cmd)
             self.turn_pub.publish(self.turn_cmd)
             self.brake_pub.publish(self.brake_cmd)  # Thinh
+            """
 
             # ----------------- Log data -----------------
             if not self.logdone:
                 if current_time - self.start_time <= self.logtime:
-                    entry = [ current_time,
-                              x0[0], x0[1], x0[2], x0[3], x0[4],
-                              u[0], u[1], u[2],
-                              ct_err_actual, hd_err_actual,
-                              xref[1]-x_e[0], xref[2]-x_e[1] ]
-                    self.logdata.append([float(x) if x is not None else 0.0 for x in entry])
-                    # xhat.append([xref[1]-x_e[0], xref[2]-x_e[1]])
+                    # entry = [ current_time,
+                    #           x0[0], x0[1], x0[2], x0[3], x0[4],
+                    #           u[0], u[1], u[2],
+                    #           ct_err_actual, hd_err_actual,
+                    #           xref[1]-x_e[0], xref[2]-x_e[1] ]
+                    # self.logdata.append([float(x) if x is not None else 0.0 for x in entry])
+                    # # xhat.append([xref[1]-x_e[0], xref[2]-x_e[1]])
+                    th = -np.pi/2 + x0[2]
+                    T = np.array([[cos(th), -sin(th), x0[0]],
+                                  [sin(th), cos(th), x0[1]],
+                                  [0, 0, 1]])
+                    p1 = np.array([self.endgoal[0], self.endgoal[1]+self.wheelbase, 1])    # endgoal in car frame (x+: to the right; y+: to the front)
+                    p0 = T @ p1     # endgoal in world frame (map)
+                    self.lane.append([p0[0], p0[1], x0[0], x0[1]])
                 else:
-                    # Debug: check problematic entries
-                    problem_entries = []
-                    for i, entry in enumerate(self.logdata):
-                        if not isinstance(entry, list) or len(entry) != 13:
-                            problem_entries.append((i, entry))
+                    # # Debug: check problematic entries
+                    # problem_entries = []
+                    # for i, entry in enumerate(self.logdata):
+                    #     if not isinstance(entry, list) or len(entry) != 13:
+                    #         problem_entries.append((i, entry))
                             
-                    if problem_entries:
-                        print(f"Found {len(problem_entries)} problematic entries:")
-                        for i, entry in problem_entries[:5]:  # Show up to 5 examples
-                            print(f"Index {i}: {entry}, type: {type(entry)}")
+                    # if problem_entries:
+                    #     print(f"Found {len(problem_entries)} problematic entries:")
+                    #     for i, entry in problem_entries[:5]:  # Show up to 5 examples
+                    #         print(f"Index {i}: {entry}, type: {type(entry)}")
                             
-                    # Try saving with manual conversion
-                    try:
-                        data_array = np.array(self.logdata, dtype=float)
-                        lane_x = self.path_points_x
-                        lane_y = self.path_points_y
-                        with open(self.logname, 'wb') as f:
-                            np.save(f, data_array)
-                            np.save(f, lane_x)
-                            np.save(f, lane_y)
-                        print("Data logged into " + self.logname)
-                    except Exception as e:
-                        print(f"Error during save: {e}")
+                    # # Try saving with manual conversion
+                    # try:
+                    #     data_array = np.array(self.logdata, dtype=float)
+                    #     lane_x = self.path_points_x
+                    #     lane_y = self.path_points_y
+                    #     with open(self.logname, 'wb') as f:
+                    #         np.save(f, data_array)
+                    #         np.save(f, lane_x)
+                    #         np.save(f, lane_y)
+                    #     print("Data logged into " + self.logname)
+                    # except Exception as e:
+                    #     print(f"Error during save: {e}")
                     
-                    self.logdone = True
+                    # self.logdone = True
                     # ----------------- Plot here cause i'm lazy -----------------
                     # xhat = np.array(xhat)
                     # plt.subplot(1,2,1)
@@ -471,7 +481,17 @@ class PurePursuit(object):
                     # plt.legend()
                     # plt.title('Heading error')
 
-                    # plt.show()
+                    self.lane = np.array(self.lane)
+                    plt.plot(self.lane[:,0], self.lane[:,1], 'k--', lw=1, label='lane')
+                    plt.plot(self.lane[:,2], self.lane[:,3], 'r-', lw=1.5, label='car')
+                    plt.xlabel('X (m)')
+                    plt.ylabel('Y (m)')
+                    plt.grid()
+                    plt.legend()
+                    plt.title('2D path')
+                    plt.axis('equal')
+
+                    plt.show()
                     # ------------------------------------------------------------
                     break   # stop running when data is logged
             # ====================================================================================================
