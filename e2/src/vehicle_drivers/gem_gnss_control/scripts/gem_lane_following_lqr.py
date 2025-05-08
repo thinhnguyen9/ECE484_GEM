@@ -1,17 +1,3 @@
-#!/usr/bin/env python3
-
-#================================================================
-# File name: gem_gnss_pp_tracker_pid.py                                                                  
-# Description: gnss waypoints tracker using pid and pure pursuit                                                                
-# Author: Hang Cui
-# Email: hangcui3@illinois.edu                                                                     
-# Date created: 08/02/2021                                                                
-# Date last modified: 03/14/2025                                                
-# Version: 1.0                                                                   
-# Usage: rosrun gem_gnss gem_gnss_pp_tracker.py                                                                      
-# Python version: 3.8                                                             
-#================================================================
-
 from __future__ import print_function
 
 # Python Headers
@@ -44,7 +30,7 @@ from nav_msgs.msg import Path
 from pacmod_msgs.msg import PositionWithSpeed, PacmodCmd, SystemRptFloat, VehicleSpeedRpt
 
 
-class PurePursuit(object):
+class LQRLaneFollower(object):
     
     def __init__(self):
 
@@ -61,13 +47,13 @@ class PurePursuit(object):
         self.r          = 0.3  # radius to look around, depends on the distance between waypoints
         self.wheelbase  = 1.75 # meters
         self.offset     = 0.46 # meters
-        self.cam2rear   = 0.75 # distance between front camera and rear wheel axle
         self.vref       = 1.5  # m/s, reference speed
 
+        self.cam2rear   = 0.75 # distance between front camera and rear wheel axle
         self.img_w      = 1280.
         self.img_h      = 720.
         self.p2m        = 4./700    # convert pixel -> meters (depends on lane detection unit)
-        self.img_T      = np.array([[1, 0, 0],
+        self.img_T      = np.array([[1, 0, -self.img_w/2],
                                     [0, -1, self.img_h],
                                     [0, 0, 1]])
 
@@ -137,14 +123,11 @@ class PurePursuit(object):
         self.steer      = 0.0   # steering wheel angle, rad
         self.delta      = 0.0   # front wheel angle, rad
 
-        # # read waypoints into the system 
-        # self.read_waypoints() 
-        # self.path_points_x = np.array(self.path_points_lon_x)
-        # self.path_points_y = np.array(self.path_points_lat_y)
-
         # Subscribe to lane detection output
-        self.endgoal_sub = rospy.Subscriber("/lane_detection/endgoal", PoseStamped, self.endgoal_callback)
-        self.waypoints_sub = rospy.Subscriber("/lane_detection/waypoints", Path, self.waypoints_callback)
+        self.endgoal_sub = rospy.Subscriber("/lane_detection/endgoal_image_coordinates", PoseStamped, self.endgoal_callback)
+        self.waypoints_sub = rospy.Subscriber("/lane_detection/waypoints_image_coordinates", Path, self.waypoints_callback)
+        # self.endgoal_sub = rospy.Subscriber("/lane_detection/endgoal", PoseStamped, self.endgoal_callback)
+        # self.waypoints_sub = rospy.Subscriber("/lane_detection/waypoints", Path, self.waypoints_callback)
         self.endgoal = np.zeros(2)  # [x, y]
         self.waypoints = []         # [[x1,y1], [x2,y2], ...] at current time t
         self.lane = []              # [[x1,y1], [x2,y2], ...] (endgoal) for time 0...T
@@ -263,20 +246,16 @@ class PurePursuit(object):
 
         return round(curr_x, 3), round(curr_y, 3), round(curr_yaw, 4)
 
-    def start_pp(self):
+    def start_lqrlf(self):
 
         # Initialize
-        # curr_x, curr_y, curr_yaw = self.get_gem_state()
-        # x0 = np.array([curr_x, curr_y, curr_yaw, self.delta, self.speed])   # [x; y; theta; delta (steering angle); v (car speed)]
         u0 = np.zeros(self.GEM.m)   # [delta_des; throttle; brake]
-        # u = np.zeros(self.GEM.m)
         xref = np.array([0.0, 0.0, 0.0, 0.0, self.vref])
         time_step = 0
 
         # For Kalman filter
         x_e = np.zeros(2)   # initial estimate [y, theta]
         dx_e = np.zeros(2)  # initial estimate derivatives
-        # xhat = []   # estimated ct_err and hd_err
 
         # Wait for GNSS data and waypoints to be loaded
         rospy.sleep(1.0)
@@ -330,7 +309,8 @@ class PurePursuit(object):
 
             # ----------------- Calculate errors -----------------
             if len(self.waypoints) >= 2:
-                ct_err, hd_err = self.tools.ErrorsFromWaypoints([self.img_w/2, 0, np.pi/2], self.waypoints)  # self.waypoints are in car coordinates
+                # TODO: try [0, 0-self.cam2rear, np.pi/2] (i.e., without lookahead)
+                ct_err, hd_err = self.tools.ErrorsFromWaypoints([0, 0, np.pi/2], self.waypoints)  # self.waypoints are in car coordinates
             else:
                 ct_err, hd_err = 0.0, 0.0
 
@@ -396,6 +376,7 @@ class PurePursuit(object):
                                   [sin(th), cos(th), x0[1]],
                                   [0, 0, 1]])
                     p1 = np.array([self.endgoal[0], self.endgoal[1]+self.cam2rear, 1])    # endgoal in car frame (x+: to the right; y+: to the front)
+                    # TODO: try self.endgoal[1]-self.cam2rear (i.e., path visualization closer to the rear axle)
                     p0 = T @ p1     # endgoal in world frame (map)
                     self.lane.append([p0[0], p0[1]])
 
@@ -471,18 +452,18 @@ class PurePursuit(object):
             self.rate.sleep()
 
 
-def pure_pursuit():
+def start_lane_following():
 
-    rospy.init_node('gnss_pp_node', anonymous=True)
-    pp = PurePursuit()
+    rospy.init_node('lane_follow_lqr_node', anonymous=True)
+    lqrlf = LQRLaneFollower()
 
     try:
-        pp.start_pp()
+        lqrlf.start_lqrlf()
     except rospy.ROSInterruptException:
         pass
 
 
 if __name__ == '__main__':
-    pure_pursuit()
+    start_lane_following()
 
 
