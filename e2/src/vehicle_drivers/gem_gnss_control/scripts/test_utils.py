@@ -70,7 +70,7 @@ elif file=='lqr':
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter_lin=0.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0505_LQR_control_150sec.npy'
-    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_lanefollow_10sec.npy'
+    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_lanefollow_90sec.npy'
 with open(filename, 'rb') as f:
     data = np.load(f)
     lane_x = np.load(f)

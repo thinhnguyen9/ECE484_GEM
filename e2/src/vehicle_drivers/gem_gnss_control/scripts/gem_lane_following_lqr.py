@@ -11,7 +11,7 @@ import scipy.signal as signal
 from filters import OnlineFilter
 from pid_controllers import PID
 from control_utils import CarModel, LQR, Aux    # Thinh
-from math import sin, cos, sqrt, tan
+from math import sin, cos, sqrt, tan, atan2
 import matplotlib.pyplot as plt
 
 # ROS Headers
@@ -37,7 +37,7 @@ class LQRLaneFollower(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 10.0      # seconds of data to log
+        self.logtime    = 90.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
         self.logname    = "TEST_LQR_lanefollow_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
@@ -308,12 +308,28 @@ class LQRLaneFollower(object):
             x0 = np.array([curr_x, curr_y, curr_yaw, self.delta, self.speed])
 
             # ----------------- Calculate errors -----------------
+            """
             if len(self.waypoints) >= 2:
                 # TODO: try [0, 0-self.cam2rear, np.pi/2] (i.e., without lookahead)
                 ct_err, hd_err = self.tools.ErrorsFromWaypoints([0, 0, np.pi/2], self.waypoints)  # self.waypoints are in car coordinates
             else:
                 ct_err, hd_err = 0.0, 0.0
+            """
             ct_err = -self.endgoal[0]
+            if len(self.waypoints) >= 2:
+                wp = np.array(self.tools.fit_line(self.waypoints))    # np.array([[x1,y1],[x2,y2]])
+                if self.tools.point_point_distance((0,0), wp[0]) <= self.tools.point_point_distance((0,0), wp[1]):
+                    path = wp[1] - wp[0]
+                else:
+                    path = wp[0] - wp[1]
+                hd_err = np.pi/2 - atan2(path[1], path[0])
+                while hd_err > np.pi:
+                    hd_err = hd_err - 2*np.pi
+                while hd_err < -np.pi:
+                    hd_err = hd_err + 2*np.pi
+            else:
+                hd_err = 0.
+            hd_err *= .1   # TODO: tune to make sure hd_err small (<.5rad)
 
             # ----------------- Kalman filter -----------------
             # Estimate y, theta with low-frequency measurements
