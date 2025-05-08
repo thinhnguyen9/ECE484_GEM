@@ -37,7 +37,7 @@ class LQRLaneFollower(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 60.0      # seconds of data to log
+        self.logtime    = 10.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
         self.logname    = "TEST_LQR_lanefollow_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
@@ -313,6 +313,7 @@ class LQRLaneFollower(object):
                 ct_err, hd_err = self.tools.ErrorsFromWaypoints([0, 0, np.pi/2], self.waypoints)  # self.waypoints are in car coordinates
             else:
                 ct_err, hd_err = 0.0, 0.0
+            ct_err = -self.endgoal[0]
 
             # ----------------- Kalman filter -----------------
             # Estimate y, theta with low-frequency measurements
@@ -375,8 +376,8 @@ class LQRLaneFollower(object):
                     T = np.array([[cos(th), -sin(th), x0[0]],
                                   [sin(th), cos(th), x0[1]],
                                   [0, 0, 1]])
-                    p1 = np.array([self.endgoal[0], self.endgoal[1]+self.cam2rear, 1])    # endgoal in car frame (x+: to the right; y+: to the front)
-                    # TODO: try self.endgoal[1]-self.cam2rear (i.e., path visualization closer to the rear axle)
+                    # p1 = np.array([self.endgoal[0], self.endgoal[1]+self.cam2rear, 1])    # endgoal in car frame (x+: to the right; y+: to the front)
+                    p1 = np.array([self.endgoal[0], self.endgoal[1]-self.cam2rear, 1])  # (i.e., path visualization closer to the rear axle)
                     p0 = T @ p1     # endgoal in world frame (map)
                     self.lane.append([p0[0], p0[1]])
 

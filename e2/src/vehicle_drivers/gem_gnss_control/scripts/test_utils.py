@@ -70,7 +70,7 @@ elif file=='lqr':
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter_lin=0.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0505_LQR_control_150sec.npy'
-    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_lanefollow_60sec.npy'
+    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_lanefollow_10sec.npy'
 with open(filename, 'rb') as f:
     data = np.load(f)
     lane_x = np.load(f)
@@ -124,11 +124,11 @@ plt.title('2D path')
 plt.axis('equal')
 
 plt.subplot(2,2,2)
-plt.plot(tvec, evec[:,0], 'r-', lw=1, label='cross-track err (m)')
-plt.plot(tvec, evec[:,1], 'b-', lw=1, label='heading err (rad)')
+plt.plot(tvec, evec[:,0], 'r--', lw=.5, label='cross-track err (m)')
+plt.plot(tvec, evec[:,1], 'b--', lw=.5, label='heading err (rad)')
 if file=='lqr':
-    plt.plot(tvec, ehat[:,0], 'r--', lw=.7, label='ct_est')
-    plt.plot(tvec, ehat[:,1], 'b--', lw=.7, label='hd_est')
+    plt.plot(tvec, ehat[:,0], 'r-', lw=1.5, label='ct_est')
+    plt.plot(tvec, ehat[:,1], 'b-', lw=1.5, label='hd_est')
 plt.xlabel('Time (s)')
 plt.ylabel('m, rad')
 plt.grid()
