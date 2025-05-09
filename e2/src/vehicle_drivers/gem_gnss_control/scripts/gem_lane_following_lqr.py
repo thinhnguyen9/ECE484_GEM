@@ -37,9 +37,9 @@ class LQRLaneFollower(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 90.0      # seconds of data to log
+        self.logtime    = 60.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
-        self.logname    = "TEST_LQR_lanefollow_" + str(int(self.logtime)) + "sec.npy"
+        self.logname    = "ActualRun_0509_LQR_lanefollow_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
 
@@ -329,7 +329,7 @@ class LQRLaneFollower(object):
                     hd_err = hd_err + 2*np.pi
             else:
                 hd_err = 0.
-            hd_err *= .1   # TODO: tune to make sure hd_err small (<.5rad)
+            hd_err *= -.2   # TODO: tune to make sure hd_err small (<.5rad)
 
             # ----------------- Kalman filter -----------------
             # Estimate y, theta with low-frequency measurements

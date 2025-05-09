@@ -68,7 +68,7 @@ class LaneDetectorCV:
             hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
             #original
-            lower_white = np.array([0, 0, 150]) # if you feel too noisy (capture too much white color), raise only the 3rd value; reduce only the 3rd value if lanes are too blury
+            lower_white = np.array([0, 0, 200]) # if you feel too noisy (capture too much white color), raise only the 3rd value; reduce only the 3rd value if lanes are too blury
             upper_white = np.array([180, 40, 255])
             lower_yellow = np.array([15, 127, 127])
             upper_yellow = np.array([35, 255, 255])
