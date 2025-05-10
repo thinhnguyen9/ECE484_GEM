@@ -22,6 +22,7 @@ class ObstacleDetector:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.msg_to_pub = Float32MultiArray()
+        self.if_obs=False
         # Subscribe to point cloud
         rospy.Subscriber("/ouster/points", PointCloud2, self.cloud_cb)
 
@@ -31,7 +32,7 @@ class ObstacleDetector:
             trans_cloud = self.tf_buffer.transform(
                 cloud_msg,
                 self.target_frame,
-                timeout=rospy.Duration(0.03)
+                timeout=rospy.Duration(0.5)
             )
 
             # Parse transformed cloud
@@ -39,14 +40,14 @@ class ObstacleDetector:
 
             # Filter points within a box in front of the vehicle
             front_obstacles = []
-            rate = rospy.Rate(50)
             for x, y, z in points:
-                if  2< x <8 and abs(y) < 1.0 and -1.3< z < 2.0:   # 6 --- 3.6m   3---1.5m
+                if 3 < x < 8 and abs(y) < 1.0 and -1.3 < z < 1.5:
                     front_obstacles.append((x, y, z))
-            
+
             if front_obstacles:
-                boolean = True
                 boxes = self.get_bounding_boxes(front_obstacles)
+                if boxes:
+                    self.if_obs=True
                 flat_data = []
                 for box in boxes:
                     for pt in box:
@@ -59,16 +60,15 @@ class ObstacleDetector:
                     MultiArrayDimension(label="coords", size=24, stride=24)
                 ]
                 # self.bbox_pub.publish(msg)
-                Pub_obs.publish(self.msg_to_pub)
                 
+              
+                Pub_obs.publish(self.msg_to_pub)
                 rospy.loginfo("----Detected! Count: %d----", len(boxes))
-                for obs in boxes:
-                    rospy.loginfo("   Position:%s ", obs)
             else:
                 rospy.loginfo("----No obstacles in front.----")
-                boolean = False
-            Pub_just.publish(boolean)
-            rate.sleep()
+                self.if_obs=False
+            Pub_just.publish(self.if_obs)
+
         except (tf2_ros.LookupException,
                 tf2_ros.ExtrapolationException,
                 tf2_ros.ConnectivityException) as e:
@@ -77,7 +77,7 @@ class ObstacleDetector:
     def run(self):
         rospy.spin()
 
-    def get_bounding_boxes(self, points, distance_threshold=0.3, min_cluster_size=5):
+    def get_bounding_boxes(self, points, distance_threshold=0.5, min_cluster_size=5):
         """
             Naive clustering and AABB corner extraction for point groups.
 
@@ -132,6 +132,6 @@ class ObstacleDetector:
 
 if __name__ == '__main__':
     Pub_obs = rospy.Publisher("/perception/obstacle_info", Float32MultiArray, queue_size=10)
-    Pub_just = rospy.Publisher("/perception/obstacle_if", Bool, queue_size=10)
+    Pub_just = rospy.Publisher("/perception/obstacle_if",Bool,queue_size=10)
     detector = ObstacleDetector()
     detector.run()
