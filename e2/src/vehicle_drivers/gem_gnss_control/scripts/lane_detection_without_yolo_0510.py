@@ -20,7 +20,7 @@ class LaneDetectorCV:
         self.camera_matrix = None
         self.camera_info_received = False
 
-        self.using_one_lane = 'undesignated' # left, or right, or undesignated
+        self.using_one_lane = 'left' # left, or right, or undesignated
         self.scale = 700 / 4
 
         rospy.Subscriber("zed2/zed_node/left/camera_info", CameraInfo, self.camera_info_callback)
@@ -52,7 +52,8 @@ class LaneDetectorCV:
         self.last_avoidance_time = rospy.Time.now()
         self.pub_time = 0.5
 
-        self.estimated_lane_width_pixels = 700 # 500 and 750
+        # self.estimated_lane_width_pixels = 700 # 500 and 750
+        self.estimated_lane_width_pixels = 700
 
         p1 = np.float32([[0.15*1280,0.75*720],[0,0.95*720],[0.85*1280,0.75*720],[1280,0.95*720]])
         # p1 = np.float32([[0.20*1280,0.65*720],[0,0.95*720],[0.80*1280,0.65*720],[1280,0.95*720]])
@@ -75,7 +76,7 @@ class LaneDetectorCV:
             hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
             # original
-            lower_white = np.array([0, 0, 150]) # if you feel too noisy (capture too much white color), raise only the 3rd value; reduce only the 3rd value if lanes are too blury
+            lower_white = np.array([0, 0, 245]) # if you feel too noisy (capture too much white color), raise only the 3rd value; reduce only the 3rd value if lanes are too blury
             upper_white = np.array([180, 40, 255])
             # lower_yellow = np.array([15, 127, 127])
             # upper_yellow = np.array([35, 255, 255])

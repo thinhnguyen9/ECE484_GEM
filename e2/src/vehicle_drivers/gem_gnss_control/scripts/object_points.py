@@ -32,7 +32,7 @@ class ObstacleDetector:
             trans_cloud = self.tf_buffer.transform(
                 cloud_msg,
                 self.target_frame,
-                timeout=rospy.Duration(0.5)
+                timeout=rospy.Duration(0.008)
             )
 
             # Parse transformed cloud
@@ -41,7 +41,7 @@ class ObstacleDetector:
             # Filter points within a box in front of the vehicle
             front_obstacles = []
             for x, y, z in points:
-                if 3 < x < 8 and abs(y) < 1.0 and -1.3 < z < 1.5:
+                if 3 < x < 7 and abs(y) < 1. and -1.3 < z < 1.5:
                     front_obstacles.append((x, y, z))
 
             if front_obstacles:

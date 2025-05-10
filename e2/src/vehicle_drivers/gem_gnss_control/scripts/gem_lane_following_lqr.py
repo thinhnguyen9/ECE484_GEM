@@ -37,7 +37,7 @@ class LQRLaneFollower(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 20.0      # seconds of data to log
+        self.logtime    = 60.0      # seconds of data to log
         self.logname    = "ActualRun_0510_LQR_lanefollow_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
@@ -58,7 +58,7 @@ class LQRLaneFollower(object):
         self.obstacle_detected      = False
         self.obstacle_detected_old  = False
         self.emergency_brake_val    = 0.
-        self.emergency_brake_rate   = 2.   # pct/second
+        self.emergency_brake_rate   = 4.   # pct/second
 
         # -------------------- Controller setup --------------------
         self.tools = Aux()
@@ -71,7 +71,7 @@ class LQRLaneFollower(object):
             carDamp = 2.0/11.1,
             steerLimits = (-np.pi*35/180, np.pi*35/180),
             steerRateLimits = (-4.*35/630, 4.*35/630),      # TODO: tune
-            throttleLimits = (.3, .4),                      # TODO: tune
+            throttleLimits = (.28, .37),                      # TODO: tune
             throttleRateLimits = (-.1, .1),                 # TODO: tune
             brakeLimits = (.0, .5),
             brakeRateLimits = (-5., .5)
@@ -82,7 +82,7 @@ class LQRLaneFollower(object):
                                     # 1 - full states (more optimized, less stable)
         self.carLQR = LQR(n=self.GEM.n-1, m=self.GEM.m)
         # TODO: tune
-        maxY = .3                   # max allowable cross-track error
+        maxY = .2                   # max allowable cross-track error
         maxTheta = np.pi*10/180      # max allowable heading error
         maxDelta = np.pi*10/180      # max allowable steering angle error
         maxV = .1                   # max allowable velocity error
