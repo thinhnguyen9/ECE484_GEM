@@ -37,9 +37,8 @@ class LQRLaneFollower(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 60.0      # seconds of data to log
-        # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
-        self.logname    = "ActualRun_0509_LQR_lanefollow_" + str(int(self.logtime)) + "sec.npy"
+        self.logtime    = 20.0      # seconds of data to log
+        self.logname    = "ActualRun_0510_LQR_lanefollow_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
 
@@ -56,6 +55,10 @@ class LQRLaneFollower(object):
         self.img_T      = np.array([[1, 0, -self.img_w/2],
                                     [0, -1, self.img_h],
                                     [0, 0, 1]])
+        self.obstacle_detected      = False
+        self.obstacle_detected_old  = False
+        self.emergency_brake_val    = 0.
+        self.emergency_brake_rate   = 2.   # pct/second
 
         # -------------------- Controller setup --------------------
         self.tools = Aux()
@@ -132,6 +135,9 @@ class LQRLaneFollower(object):
         self.waypoints = []         # [[x1,y1], [x2,y2], ...] at current time t
         self.lane = []              # [[x1,y1], [x2,y2], ...] (endgoal) for time 0...T
         self.new_waypoints_flag = False
+
+        # Subscribe to obstacle detection output
+        self.obstacle_sub = rospy.Subscriber("/perception/obstacle_if", Bool, self.obstacle_callback)
 
         # -------------------- PACMod setup --------------------
 
@@ -213,6 +219,17 @@ class LQRLaneFollower(object):
                 wp1 = self.img_T @ wp0
                 self.waypoints.append(wp1[:2]*self.p2m)
             self.new_waypoints_flag = True
+
+    def obstacle_callback(self, msg):
+        detected = msg.data     # TODO: verify msg type
+        if detected and not self.obstacle_detected_old:
+            print("+------------------------------------------------+")
+            print("|     OBSTACLE DETECTED! Stopping the car...     |")
+            print("+------------------------------------------------+")
+        if not detected and self.obstacle_detected_old:
+            print("OBSTACLE CLEARED! Resuming the car...")
+        self.obstacle_detected_old = self.obstacle_detected
+        self.obstacle_detected = detected
 
     def enable_callback(self, msg):
         self.pacmod_enable = msg.data
@@ -308,13 +325,6 @@ class LQRLaneFollower(object):
             x0 = np.array([curr_x, curr_y, curr_yaw, self.delta, self.speed])
 
             # ----------------- Calculate errors -----------------
-            """
-            if len(self.waypoints) >= 2:
-                # TODO: try [0, 0-self.cam2rear, np.pi/2] (i.e., without lookahead)
-                ct_err, hd_err = self.tools.ErrorsFromWaypoints([0, 0, np.pi/2], self.waypoints)  # self.waypoints are in car coordinates
-            else:
-                ct_err, hd_err = 0.0, 0.0
-            """
             ct_err = -self.endgoal[0]
             if len(self.waypoints) >= 2:
                 wp = np.array(self.tools.fit_line(self.waypoints))    # np.array([[x1,y1],[x2,y2]])
@@ -322,14 +332,14 @@ class LQRLaneFollower(object):
                     path = wp[1] - wp[0]
                 else:
                     path = wp[0] - wp[1]
-                hd_err = np.pi/2 - atan2(path[1], path[0])
+                hd_err = atan2(path[1], path[0]) - np.pi/2
                 while hd_err > np.pi:
                     hd_err = hd_err - 2*np.pi
                 while hd_err < -np.pi:
                     hd_err = hd_err + 2*np.pi
             else:
                 hd_err = 0.
-            hd_err *= -.2   # TODO: tune to make sure hd_err small (<.5rad)
+            hd_err *= .2   # TODO: tune to make sure hd_err small (<.5rad)
 
             # ----------------- Kalman filter -----------------
             # Estimate y, theta with low-frequency measurements
@@ -365,6 +375,17 @@ class LQRLaneFollower(object):
                 u[1] = u0[1]
             u0 = u
             time_step += 1
+
+            # ----------------- Emergency brake -----------------
+            if not self.obstacle_detected:
+                self.emergency_brake_val = u[2]     # set emergency brake to current brake value - for continuous braking experience
+            else:
+                # immediately cut off throttle
+                u[1] = 0.
+
+                # apply brake gradually
+                self.emergency_brake_val += self.emergency_brake_rate * dt
+                u[2] = min(self.emergency_brake_val, 1.0)  # saturate brake to 1.0
 
             # ----------------- Publish control -----------------
             # if (f_delta_deg <= 30 and f_delta_deg >= -30):
@@ -431,6 +452,7 @@ class LQRLaneFollower(object):
                         print(f"Error during save: {e}")
                     
                     self.logdone = True
+
                     # ----------------- Plot here cause i'm lazy -----------------
                     # xhat = np.array(xhat)
                     # plt.subplot(1,2,1)
@@ -463,7 +485,8 @@ class LQRLaneFollower(object):
 
                     # plt.show()
                     # ------------------------------------------------------------
-                    break   # stop running when data is logged
+
+                    # break   # stop running when data is logged
             # ====================================================================================================
 
             self.rate.sleep()
