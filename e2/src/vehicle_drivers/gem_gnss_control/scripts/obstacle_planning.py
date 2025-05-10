@@ -382,7 +382,7 @@ class LaneNetDetector:
         else:
             raise ValueError("direction must be 'left' or 'right'")
         
-        x_curve = sign * (1.5 * np.sin(np.linspace(0, np.pi, num_points)) + 1e-5)
+        x_curve = sign * (1.5 * np.sin(np.linspace(0, 4*np.pi, num_points)) + 1e-5)
         y_curve = np.linspace(1 + 1.76 + 1.7, 1 + 1.76 + 1.7, num_points)
         
         return list(zip(x_curve, y_curve))        
