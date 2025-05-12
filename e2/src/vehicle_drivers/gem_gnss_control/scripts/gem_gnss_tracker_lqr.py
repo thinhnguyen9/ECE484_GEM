@@ -49,17 +49,17 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 150.0      # seconds of data to log
+        self.logtime    = 30.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_LQR_control_" + str(int(self.logtime)) + "sec.npy"
-        self.logname    = "ActualRun_0505_LQR_control_" + str(int(self.logtime)) + "sec.npy"
+        self.logname    = "ActualRun_0512_LQR_control_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
 
-        self.look_ahead = 2.
+        self.look_ahead = 0.                                # TODO May 12
         self.r          = 0.3  # radius to look around, depends on the distance between waypoints
         self.wheelbase  = 1.75 # meters
         self.offset     = 0.46 # meters
-        self.vref       = 1.5  # m/s, reference speed
+        self.vref       = 1.5  # m/s, reference speed       # TODO May 12
 
         # -------------------- Controller setup --------------------
         self.tools = Aux()
@@ -72,19 +72,20 @@ class PurePursuit(object):
             carDamp = 2.0/11.1,
             steerLimits = (-np.pi*35/180, np.pi*35/180),
             steerRateLimits = (-4.*35/630, 4.*35/630),      # TODO: tune
-            throttleLimits = (.3, .4),                      # TODO: tune
+            throttleLimits = (.29, .37),                    # vref = 1.5    # TODO May 12
+            # throttleLimits = (.4, .6),                      # vref = 3.     # TODO May 12
             throttleRateLimits = (-.1, .1),                 # TODO: tune
             brakeLimits = (.0, .5),
             brakeRateLimits = (-5., .5)
         )
         self.MPC_horizon = 1        # optimize every ... steps
-        self.linearize_method = 0   # linearize the system around:
+        self.linearize_method = 1   # linearize the system around:      # TODO May 12
                                     # 0 - velocity only (safer)
                                     # 1 - full states (more optimized, less stable)
         self.carLQR = LQR(n=self.GEM.n-1, m=self.GEM.m)
         # TODO: tune
-        maxY = .3                   # max allowable cross-track error
-        maxTheta = np.pi*10/180      # max allowable heading error
+        maxY = .3                   # max allowable cross-track error       # TODO May 12
+        maxTheta = np.pi*10/180      # max allowable heading error          # TODO May 12
         maxDelta = np.pi*10/180      # max allowable steering angle error
         maxV = .1                   # max allowable velocity error
         Q = np.diag([   1/(maxY**2),
@@ -335,6 +336,10 @@ class PurePursuit(object):
                 ct_err, hd_err = 0.0, 0.0
 
             # ----------------- Calculate control -----------------
+            # # Bound errors for safety       # TODO May 12
+            # ct_err = max(-.5, min(.5, ct_err))
+            # hd_err = max(-np.pi/6, min(np.pi/6, hd_err))
+
             xbar = np.array([0, ct_err, hd_err, x0[3], x0[4]])
             if time_step % self.MPC_horizon == 0:
                 if self.linearize_method == 0:
@@ -360,7 +365,7 @@ class PurePursuit(object):
 
             # Current derivative (for x_e at time t+1): dx = Ax + Bu + L(y-Cx)
             meas_update = np.zeros(2)
-            if time_step % 2 == 0: # new measurements available
+            if time_step % 10 == 0: # new measurements available
                 if ct_err_actual is None or hd_err_actual is None:
                     y_meas = 0.
                     theta_meas = 0.

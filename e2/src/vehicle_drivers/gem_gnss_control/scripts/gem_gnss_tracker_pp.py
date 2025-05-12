@@ -47,9 +47,9 @@ class PurePursuit(object):
         self.rate       = rospy.Rate(30)    # Thinh
         self.start_time = rospy.get_time()
         self.last_time  = self.start_time
-        self.logtime    = 100.0      # seconds of data to log
+        self.logtime    = 300.0      # seconds of data to log
         # self.logname    = str(self.start_time) + "_PP_control_" + str(int(self.logtime)) + "sec.npy"
-        self.logname    = "ActualRun_0502_PP_control_" + str(int(self.logtime)) + "sec.npy"
+        self.logname    = "ActualRun_0512_PP_control_" + str(int(self.logtime)) + "sec.npy"
         self.logdata    = []        # [time, x, u]
         self.logdone    = False
         self.tools      = Aux()
@@ -81,7 +81,7 @@ class PurePursuit(object):
         self.goal       = 0            
         self.read_waypoints() 
 
-        self.desired_speed = 1.5  # m/s, reference speed
+        self.desired_speed = 1.5  # m/s, reference speed    # TODO May 12
         self.max_accel     = 0.48 # % of acceleration
         self.pid_speed     = PID(0.5, 0.0, 0.1, wg=20)
         self.speed_filter  = OnlineFilter(1.2, 30, 4)
@@ -226,6 +226,9 @@ class PurePursuit(object):
         return round(np.sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2), 3)
 
     def start_pp(self):
+
+        # Wait for GNSS data and waypoints to be loaded
+        rospy.sleep(1.0)
         
         while not rospy.is_shutdown():
 

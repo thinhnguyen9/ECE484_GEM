@@ -221,7 +221,7 @@ class LQRLaneFollower(object):
             self.new_waypoints_flag = True
 
     def obstacle_callback(self, msg):
-        detected = msg.data     # TODO: verify msg type
+        detected = msg.data
         if detected and not self.obstacle_detected_old:
             print("+------------------------------------------------+")
             print("|     OBSTACLE DETECTED! Stopping the car...     |")
