@@ -64,14 +64,16 @@ file = 'lqr'     # pp or lqr
 
 if file=='pp':
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_PP_control_140sec.npy'
-    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0501_PP_control_200sec.npy'
+    # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0501_PP_control_200sec.npy'
+    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0512_PP_control_300sec_v1.5.npy'
 elif file=='lqr':
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter_lin=0.npy'
-    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0505_LQR_control_150sec.npy'
+    # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0512_LQR_control_30sec.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_lanefollow_90sec.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0510_LQR_lanefollow_60sec_take2.npy'
+    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0512_LQR_control_300sec_v1.5.npy'
 with open(filename, 'rb') as f:
     data = np.load(f)
     lane_x = np.load(f)
