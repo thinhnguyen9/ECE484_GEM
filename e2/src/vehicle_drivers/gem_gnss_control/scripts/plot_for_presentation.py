@@ -22,9 +22,10 @@ GEM = CarModel(
 #              PP vs. LQR
 # =================================================
 
-filename_pp     = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0501_PP_control_200sec.npy'
-filename_lqr    = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0505_LQR_control_150sec.npy'
+filename_pp     = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0512_PP_control_300sec_v1.5.npy'
+filename_lqr    = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0512_LQR_control_300sec_v1.5.npy'
 # filename_lqr    = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0510_LQR_lanefollow_60sec_take2.npy'
+vref = 1.5
 
 with open(filename_pp, 'rb') as f:
     data = np.load(f)
@@ -47,9 +48,24 @@ uvec_lqr = data[:,6:9]
 evec_lqr = data[:,9:11]
 ehat_lqr = data[:,11:13]
 
+# Calculate RMS errors
+rms_tracking_error = np.sqrt(np.mean(evec_pp[:, 0]**2))  # Cross-track error
+rms_heading_error = np.degrees(np.sqrt(np.mean(evec_pp[:, 1]**2)))   # Heading error
+rms_velocity_error = np.sqrt(np.mean((xvec_pp[:, 4] - vref)**2))  # Velocity error
+print(f"[PP] RMS Cross-track Error: {rms_tracking_error:.4f} m")
+print(f"[PP] RMS Heading Error: {rms_heading_error:.4f} deg")
+print(f"[PP] RMS Velocity Error: {rms_velocity_error:.4f} m/s")
+
+rms_tracking_error = np.sqrt(np.mean(evec_lqr[:, 0]**2))  # Cross-track error
+rms_heading_error = np.degrees(np.sqrt(np.mean(evec_lqr[:, 1]**2)))   # Heading error
+rms_velocity_error = np.sqrt(np.mean((xvec_lqr[:, 4] - vref)**2))  # Velocity error
+print(f"[LQR] RMS Cross-track Error: {rms_tracking_error:.4f} m")
+print(f"[LQR] RMS Heading Error: {rms_heading_error:.4f} deg")
+print(f"[LQR] RMS Velocity Error: {rms_velocity_error:.4f} m/s")
+
 
 plt.subplot(2,2,1)
-plt.plot(lane_x, lane_y, 'k--', lw=1, label='Waypoints')
+plt.plot(lane_x, lane_y, 'k--', lw=1, label='Desired')
 plt.plot(xvec_pp[:,0], xvec_pp[:,1], 'r-', lw=1.5, label='PP')
 plt.plot(xvec_lqr[:,0], xvec_lqr[:,1], 'b-', lw=1.5, label='LQR')
 plt.xlabel('X (m)')
@@ -59,41 +75,64 @@ plt.legend()
 plt.title('2D path')
 plt.axis('equal')
 
-t = 4000
 plt.subplot(2,2,2)
-plt.plot(tvec_pp[:t], xvec_pp[:t,4], 'k-', lw=1, label='PP')
-plt.plot(tvec_lqr[:t], xvec_lqr[:t,4], 'b-', lw=1, label='LQR')
+plt.axhline(y=vref, color='k', linestyle='--', linewidth=1, label='Desired')
+plt.plot(tvec_pp, xvec_pp[:,4], 'r-', lw=1, label='PP')
+plt.plot(tvec_lqr, xvec_lqr[:,4], 'b-', lw=1, label='LQR')
 plt.xlabel('Time (s)')
 plt.ylabel('m/s')
 plt.grid()
 plt.legend()
 plt.title('Car velocity')
 
-"""
-plt.subplot(2,2,2)
-plt.plot(tvec, evec[:,0], 'r--', lw=.5, label='cross-track err (m)')
-plt.plot(tvec, evec[:,1], 'b--', lw=.5, label='heading err (rad)')
-if file=='lqr':
-    plt.plot(tvec, ehat[:,0], 'r-', lw=1.5, label='ct_est')
-    plt.plot(tvec, ehat[:,1], 'b-', lw=1.5, label='hd_est')
-plt.xlabel('Time (s)')
-plt.ylabel('m, rad')
-plt.grid()
-plt.legend()
-plt.title('Cross-track error')
+plt.show()
+
+
+# =================================================
+#              Kalman filter
+# =================================================
+
+filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0510_LQR_lanefollow_60sec_take1.npy'
+# filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0510_LQR_lanefollow_60sec_03.npy'
+
+with open(filename, 'rb') as f:
+    data = np.load(f)
+    lane_x = np.load(f)
+    lane_y = np.load(f)
+tvec = data[:,0] - data[0,0]
+xvec = data[:,1:6]
+uvec = data[:,6:9]
+evec = data[:,9:11]
+ehat = data[:,11:13]
+
+# Lane from Kalman filter
+cam2rear = .75
+lane = []
+for i in range(len(xvec)):
+    goal_meas = np.array([0, -evec[i,0], 1])
+    goal_est = np.array([0, -ehat[i,0], 1])
+    th = xvec[i,2]
+    T = np.array([[cos(th), -sin(th), xvec[i,0]],
+                    [sin(th), cos(th), xvec[i,1]],
+                    [0, 0, 1]])
+    # endgoal in world frame (map)
+    lane_meas = T @ goal_meas
+    lane_est = T @ goal_est
+    lane.append([lane_meas[0], lane_meas[1], 
+                 lane_est[0], lane_est[1]])
+lane = np.array(lane)
+
 
 plt.subplot(2,2,3)
-plt.plot(tvec, uvec[:,0]*180/np.pi, 'k--', lw=.7, label='command')
-plt.plot(tvec, xvec[:,3]*180/np.pi, 'k-', lw=1, label='actual')
-plt.plot(tvec, xvec[:,2]*180/np.pi, 'b-', lw=1, label='heading')
-plt.xlabel('Time (s)')
-plt.ylabel('deg')
+# plt.plot(lane_x, lane_y, 'k--', lw=.7, label='Measurement')
+plt.plot(lane[:,0], lane[:,1], 'k--', lw=.7, label='Measurement')
+plt.plot(lane[:,2], lane[:,3], 'r-', lw=1.5, label='Estimation')
+plt.xlabel('X (m)')
+plt.ylabel('Y (m)')
 plt.grid()
 plt.legend()
-plt.title('Steering angle')
-
-
-"""
+plt.title('2D path')
+plt.axis('equal')
 
 plt.show()
 

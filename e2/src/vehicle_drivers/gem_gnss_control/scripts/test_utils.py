@@ -72,8 +72,8 @@ elif file=='lqr':
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_control_140sec_with_KalmanFilter_lin=0.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0512_LQR_control_30sec.npy'
     # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/TEST_LQR_lanefollow_90sec.npy'
-    # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0510_LQR_lanefollow_60sec_take2.npy'
-    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0512_LQR_control_300sec_v1.5.npy'
+    filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0510_LQR_lanefollow_60sec_take1.npy'
+    # filename = 'e2/src/vehicle_drivers/gem_gnss_control/scripts/ActualRun_0512_LQR_control_300sec_v1.5.npy'
 with open(filename, 'rb') as f:
     data = np.load(f)
     lane_x = np.load(f)
@@ -90,6 +90,15 @@ if file=='pp':
         xvec[i,3] = GEM.steer2delta(np.radians(xvec[i,3]))
         uvec[i,0] = GEM.steer2delta(np.radians(uvec[i,0]))
 
+# Calculate RMS errors
+rms_tracking_error = np.sqrt(np.mean(evec[:, 0]**2))  # Cross-track error
+rms_heading_error = np.sqrt(np.mean(evec[:, 1]**2))   # Heading error
+vref = 1.5
+rms_velocity_error = np.sqrt(np.mean((xvec[:, 4] - vref)**2))  # Velocity error
+
+print(f"RMS Cross-track Error: {rms_tracking_error:.4f} m")
+print(f"RMS Heading Error: {rms_heading_error:.4f} rad")
+print(f"RMS Velocity Error: {rms_velocity_error:.4f} m/s")
 
 # ------------- Kalman filter -------------
 x_est = np.zeros((len(xvec), 3))    # x, y, theta

@@ -1,6 +1,13 @@
-# GEM Workspace and Starter Code
+# Autonomous lane keeping
 
-This starter code implements a baseline for lane detection and lane following control. 
+A perception-planning-control pipeline tested on a real-life GEM e2 car. Based on the ECE 484 starter code that implements a baseline lane detection and Pure Pursuit controller.
+
+We proposed a new model with steering and throttle dynamics, and a full-state feedback control law using LQR and state estimation using Kalman filter. This improves cross-track RMS error by 18% and velocity RMS error by 61% compared with the given Pure Pursuit controller.
+
+The small clip shows the car following a curved track and braking autonomously when encountering a traffic cone:
+<p align="center">
+  <img src="./media/demo_inside.gif" alt="Estimation error demo" width="480" />
+</p>
 
 ## Do note:
 For information on e.g., what rostopics to record, software versions, hardware specs, etc. PLEASE, please look at the vehicle documentation, linked on the [course project page](https://publish.illinois.edu/safe-autonomy/resources/) and [directly in the CfA resources here](https://publish.illinois.edu/robotics-autonomy-resources/).
